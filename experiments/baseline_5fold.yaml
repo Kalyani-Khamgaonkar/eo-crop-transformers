@@ -1,0 +1,23 @@
+# Frozen baseline ViT (recipe chosen on the 5% subset: tuned_adamw), full data, official 5 folds.
+name: baseline_vit_5fold
+
+base:
+  model.tokenizer: patch2d
+  model.patch_size: 4
+  model.tubelet_t: 1
+  model.attention: joint
+  model.spatial_pe: learnable
+  model.temporal_enc: doy_sin
+  model.dropout: 0.1
+  model.drop_path: 0.1
+  train.weight_decay: 0.05
+  train.loss: weighted_ce
+  data.subset_fraction: 1.0
+  data.num_workers: 6
+
+runs:
+  - {id: frozen, data.fold_run: I}
+  - {id: frozen, data.fold_run: II}
+  - {id: frozen, data.fold_run: III}
+  - {id: frozen, data.fold_run: IV}
+  - {id: frozen, data.fold_run: V}

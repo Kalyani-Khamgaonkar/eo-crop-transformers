@@ -14,7 +14,7 @@ Pipeline
     joint           one encoder over all T' x N tokens (depth_temporal + depth_spatial blocks)
     temporal_first  temporal encoder per spatial location, masked mean over time,
                     then spatial encoder over N tokens (TSViT order; TSViT itself uses class
-                    tokens instead of mean pooling, see core/models/tsvit.py for the reference)
+                    tokens instead of mean pooling)
 
 Both structures use the same total number of blocks and the same head,
 so parameter counts stay close (checked against the protocol budget).

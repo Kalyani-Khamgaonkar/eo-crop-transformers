@@ -35,13 +35,11 @@ def check_gpu():
 @cli.command("list_models")
 def list_models_cmd():
     """List model presets."""
-    from core.models.registry import PRESETS, EXTERNAL
+    from core.models.registry import PRESETS
 
     for name, ov in PRESETS.items():
         short = ", ".join(f"{k.split('.')[-1]}={v}" for k, v in ov.items())
         click.echo(f"{name:20s} {short}")
-    for name, note in EXTERNAL.items():
-        click.echo(f"{name:20s} {note}")
 
 
 @cli.command("list_search_space")
@@ -109,15 +107,88 @@ def make_subset(fold_run, fraction, seed):
     click.echo(json.dumps(out, indent=2))
 
 
+@cli.command("prepare_subset")
+@click.option("--pastis-dir", required=True, type=click.Path(exists=True),
+              help="Raw PASTIS folder (metadata.geojson, DATA_S2, ANNOTATIONS)")
+@click.option("--fold-run", default="I")
+@click.option("--fraction", default=None, type=float, help="Default: protocol subset_fraction")
+@click.option("--seed", default=None, type=int, help="Default: protocol subset_seed")
+@click.option("--include-test", is_flag=True, help="Also convert the full test fold")
+def prepare_subset_cmd(pastis_dir, fold_run, fraction, seed, include_test):
+    """Raw PASTIS -> select stratified subset -> 24x24 pickles -> file lists. One step."""
+    from core.data.prepare import prepare_subset
+
+    d = load_protocol()["data"]
+    fraction = d["subset_fraction"] if fraction is None else fraction
+    seed = d["subset_seed"] if seed is None else seed
+    out = prepare_subset(Path(pastis_dir), get_paths().dataset_dir, fold_run, fraction, seed,
+                         d["num_classes"], d["ignore_index"], include_test)
+    click.echo(json.dumps(out, indent=2))
+
+
+@cli.command("make_lists")
+@click.option("--train-dir", type=click.Path(exists=True), help="Folder with training pickles")
+@click.option("--val-dir", type=click.Path(exists=True), help="Folder with validation pickles")
+@click.option("--train-list", type=click.Path(exists=True), help="Existing list file (one pickle per line)")
+@click.option("--val-list", type=click.Path(exists=True), help="Existing list file (one pickle per line)")
+@click.option("--fold-run", default="I")
+@click.option("--fraction", default=0.05, type=float, help="Which subset these lists represent")
+@click.option("--seed", default=42, type=int)
+def make_lists(train_dir, val_dir, train_list, val_list, fold_run, fraction, seed):
+    """Use an EXISTING subset (folders or list files) instead of make_splits + make_subset.
+
+    Pickles must be inside DATASET_DIR. List entries are matched by file name.
+    """
+    from core.data.pastis import split_file
+
+    root = get_paths().dataset_dir.resolve()
+    index = {p.name: p for p in root.rglob("*.pickle")}
+
+    def from_dir(d):
+        return sorted(str(p.resolve().relative_to(root)) for p in Path(d).rglob("*.pickle"))
+
+    def from_list(f):
+        out, missing = [], []
+        for line in Path(f).read_text().splitlines():
+            name = Path(line.strip()).name
+            if not name:
+                continue
+            (out.append(str(index[name].relative_to(root))) if name in index else missing.append(name))
+        if missing:
+            raise click.UsageError(f"{len(missing)} files from {f} not found under {root}, e.g. {missing[:3]}")
+        return out
+
+    for split, d, f in (("train", train_dir, train_list), ("val", val_dir, val_list)):
+        if not (d or f):
+            raise click.UsageError(f"Give --{split}-dir or --{split}-list")
+        files = from_dir(d) if d else from_list(f)
+        target = split_file(root, fold_run, split, fraction, seed)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("\n".join(files) + "\n")
+        click.echo(f"{split}: {len(files)} files -> {target}")
+
+
 @cli.command("compute_stats")
 @click.option("--fold-run", default="I")
-def compute_stats(fold_run):
-    """Per-band mean / std from the FULL training split of a run."""
+@click.option("--subset", is_flag=True, help="Use the subset training list (if the full set is not here yet)")
+@click.option("--fraction", default=None, type=float, help="Subset fraction (default: protocol value)")
+@click.option("--seed", default=None, type=int, help="Subset seed (default: protocol value)")
+def compute_stats(fold_run, subset, fraction, seed):
+    """Per-band mean / std from the training split of a run (full split by default)."""
     from core.data.pastis import compute_norm_stats, split_file
 
     root = get_paths().dataset_dir
-    stats = compute_norm_stats(root, split_file(root, fold_run, "train"), root / "stats" / f"norm_{fold_run}.json")
-    click.echo(json.dumps({k: v for k, v in stats.items() if k != "n_pixels"}, indent=2))
+    d = load_protocol()["data"]
+    fraction = d["subset_fraction"] if fraction is None else fraction
+    seed = d["subset_seed"] if seed is None else seed
+    lst = split_file(root, fold_run, "train", fraction if subset else None, seed)
+    if not lst.exists():
+        raise click.UsageError(f"{lst} not found. Run prepare_subset / make_lists first.")
+    stats = compute_norm_stats(root, lst, root / "stats" / f"norm_{fold_run}.json")
+    stats["source"] = str(lst)
+    (root / "stats" / f"norm_{fold_run}.json").write_text(json.dumps(stats, indent=2))
+    click.echo(f"stats from {lst} ({stats['n_pixels']} pixels)")
+    click.echo(json.dumps({k: v for k, v in stats.items() if k in ("mean", "std")}, indent=2))
 
 
 # ---------------------------------------------------------------- training
@@ -137,7 +208,8 @@ def num_runs(experiment_config):
 @click.option("--synthetic", is_flag=True, help="Fake data: smoke test without PASTIS")
 @click.option("--no-strict-budget", is_flag=True, help="Do not stop when params are outside the budget")
 @click.option("--dry-run", is_flag=True, help="Print the resolved config and parameter count, then stop")
-def train(preset, experiment_config, run_index, sets, synthetic, no_strict_budget, dry_run):
+@click.option("--overfit", default=0, type=int, help="Sanity check: train AND validate on the first N training files")
+def train(preset, experiment_config, run_index, sets, synthetic, no_strict_budget, dry_run, overfit):
     """Train one configuration."""
     import yaml
 
@@ -152,6 +224,9 @@ def train(preset, experiment_config, run_index, sets, synthetic, no_strict_budge
     if preset:
         cfg["run"]["name"] = name = name.replace("adhoc", preset, 1)
         cfg["run"]["experiment"] = cfg["run"]["experiment"].replace("adhoc", preset)
+    if overfit:
+        cfg["run"]["name"] = name = f"overfit{overfit}__{name}"
+        cfg["run"]["experiment"] = "overfit"
     problems = check(cfg)
     if problems:
         raise click.UsageError("Invalid configuration: " + "; ".join(problems))
@@ -161,7 +236,7 @@ def train(preset, experiment_config, run_index, sets, synthetic, no_strict_budge
         _, ok, msg = check_param_budget(build_model(cfg), cfg)
         click.echo(f"{msg} {'OK' if ok else 'OUTSIDE BUDGET'}, {tokens_per_sample(cfg)} tokens/sample")
         return
-    run_training(cfg, synthetic=synthetic, strict_budget=not no_strict_budget)
+    run_training(cfg, synthetic=synthetic, strict_budget=not no_strict_budget, overfit=overfit)
 
 
 @cli.command("evaluate_test")

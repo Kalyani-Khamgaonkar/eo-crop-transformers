@@ -8,8 +8,9 @@ Spatial (where a token sits in the 2D grid)
     none        no spatial information (ablation)
 
 Temporal (when a token was observed)
-    doy_sin        fixed sine / cosine of the day of year      (irregular dates handled)
-    doy_learned    trained vector per day of year (1..366)     (TSViT)
+    doy_sin        fixed sine / cosine of the acquisition day  (irregular dates handled)
+    doy_learned    trained vector per acquisition day          (TSViT)
+    (PASTIS spans ~15 months, so "day" = days since 2018-09-01, range 0..~460)
     index_learned  trained vector per token index, ignores real dates (plain ViT)
 """
 
@@ -19,6 +20,8 @@ import math
 
 import torch
 import torch.nn as nn
+
+MAX_DAY = 511  # largest day index the learned temporal table can hold
 
 
 def sincos_1d(pos: torch.Tensor, dim: int, max_period: float = 10000.0) -> torch.Tensor:
@@ -81,7 +84,7 @@ class TemporalEncoding(nn.Module):
         super().__init__()
         self.kind, self.dim = kind, dim
         if kind == "doy_learned":
-            self.emb = nn.Embedding(367, dim)
+            self.emb = nn.Embedding(MAX_DAY + 1, dim)
         elif kind == "index_learned":
             self.emb = nn.Embedding(max_tokens, dim)
         elif kind != "doy_sin":
@@ -91,6 +94,6 @@ class TemporalEncoding(nn.Module):
         if self.kind == "doy_sin":
             return sincos_1d(doy, self.dim, max_period=1000.0)
         if self.kind == "doy_learned":
-            return self.emb(doy.clamp(0, 366))
+            return self.emb(doy.clamp(0, MAX_DAY))
         idx = torch.arange(doy.shape[1], device=doy.device).expand_as(doy)
         return self.emb(idx)

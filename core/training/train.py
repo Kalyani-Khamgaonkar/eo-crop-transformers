@@ -31,7 +31,7 @@ from core.utils.results import append_result, row_from_config
 
 # ---------------------------------------------------------------- data
 
-def build_loaders(cfg: dict, synthetic: bool = False):
+def build_loaders(cfg: dict, synthetic: bool = False, overfit: int = 0):
     d, t = cfg["data"], cfg["train"]
     if synthetic:
         kw = dict(max_dates=d["max_dates"], bands=d["bands"], img_size=d["img_size"],
@@ -51,8 +51,12 @@ def build_loaders(cfg: dict, synthetic: bool = False):
             if not p.exists():
                 raise FileNotFoundError(f"{s} list {p} missing. See README: make_splits / make_subset")
         common = dict(max_dates=d["max_dates"], ignore_index=d["ignore_index"], norm_stats=stats)
-        train_ds = PASTIS24(root, lists["train"], train=True, augment=t["augment"], **common)
+        train_ds = PASTIS24(root, lists["train"], train=True, augment=t["augment"] and not overfit, **common)
         val_ds = PASTIS24(root, lists["val"], train=False, **common)
+        if overfit:  # sanity check: same few files for training and validation
+            train_ds.files = train_ds.files[:overfit]
+            val_ds = PASTIS24(root, lists["train"], train=False, **common)
+            val_ds.files = train_ds.files
         counts = None
         if t["loss"] == "weighted_ce":
             counts = class_counts(root, lists["train"], d["num_classes"], d["ignore_index"])
@@ -149,7 +153,7 @@ def evaluate(model, loader, loss_fn, device, cfg) -> dict:
 
 # ---------------------------------------------------------------- main entry
 
-def run_training(cfg: dict, synthetic: bool = False, strict_budget: bool = True) -> dict:
+def run_training(cfg: dict, synthetic: bool = False, strict_budget: bool = True, overfit: int = 0) -> dict:
     paths = get_paths()
     run_dir = paths.checkpoints / cfg["run"]["name"]
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -162,7 +166,7 @@ def run_training(cfg: dict, synthetic: bool = False, strict_budget: bool = True)
     if not ok and strict_budget:
         raise ValueError(f"Parameter budget violated: {msg}. Use --no-strict-budget only for debugging.")
 
-    train_dl, val_dl, counts = build_loaders(cfg, synthetic)
+    train_dl, val_dl, counts = build_loaders(cfg, synthetic, overfit)
     loss_fn = build_loss(cfg, counts).to(device)
     opt = build_optimizer(model, cfg)
     sched = build_scheduler(opt, cfg, len(train_dl))
@@ -235,7 +239,7 @@ def run_training(cfg: dict, synthetic: bool = False, strict_budget: bool = True)
         "git_commit": git_info()["commit"][:10],
         "slurm_job_id": json.loads((run_dir / "manifest.json").read_text()).get("slurm_job_id"),
     }
-    if epoch_times and not synthetic:  # only log real, completed runs
+    if epoch_times and not synthetic and not overfit:  # only log real runs
         append_result(paths.results_csv, summary)
     print(f"[done] best val mIoU {best['miou']:.4f} at epoch {best['epoch']}  -> {run_dir}")
     return summary

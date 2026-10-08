@@ -1,30 +1,38 @@
-# Hyperparameter sweep for the plain ViT baseline.
-# Change one thing at a time; copy the best value into `base` before the next step.
-# Run one entry:   python -m core.cli train --experiment-config experiments/hp_sweep.yaml --run-index 0
-# Run all as a Slurm array:   sbatch --array=0-N slurm/sweep.sh experiments/hp_sweep.yaml
+# STAGE A: hyperparameter sweep for the BASELINE ViT on the small subset.
+# All runs are independent, so they can run in parallel tonight:
+#   N=$(python -m core.cli num_runs experiments/hp_sweep.yaml)
+#   sbatch --array=0-$((N-1))%6 slurm/sweep.sh experiments/hp_sweep.yaml
+#
+# Design: one change at a time from a reference run (`ref`), so each result shows the
+# effect of exactly one setting. LR 1e-3 is the reference because the same recipe
+# (AdamW, warmup + cosine, batch 8) already trained well on this subset.
+# Read results:  python -m core.cli report --experiment hp_sweep_vit
 
 name: hp_sweep_vit
 
 base:
+  # baseline ViT (same as `--model vit`)
   model.tokenizer: patch2d
   model.patch_size: 4
+  model.tubelet_t: 1
   model.attention: joint
   model.spatial_pe: learnable
   model.temporal_enc: doy_sin
+  # small-data screening (epochs and warmup come from the protocol: 100 and 10)
   data.subset_fraction: 0.05
-  train.epochs: 50
 
 runs:
-  # Step 1: learning rate
+  - {id: ref}                                        # lr 1e-3, AdamW, no regularisation
+  # learning rate
   - {id: lr_1e-4, train.lr: 1.0e-4}
   - {id: lr_3e-4, train.lr: 3.0e-4}
-  - {id: lr_1e-3, train.lr: 1.0e-3}
-  # Step 2: optimiser (set lr to the best from step 1 first)
-  - {id: opt_sgd, train.optimizer: sgd}
-  # Step 3: regularisation
+  # optimiser
+  - {id: opt_sgd, train.optimizer: sgd, train.lr: 1.0e-2}   # SGD needs a larger lr
+  # regularisation against overfitting
   - {id: wd_0.01, train.weight_decay: 0.01}
   - {id: wd_0.05, train.weight_decay: 0.05}
-  - {id: loss_weighted, train.loss: weighted_ce}
-  - {id: droppath_0.1, model.drop_path: 0.1}
   - {id: dropout_0.1, model.dropout: 0.1}
+  - {id: droppath_0.1, model.drop_path: 0.1}
   - {id: augment, train.augment: true}
+  # class imbalance
+  - {id: loss_weighted, train.loss: weighted_ce}

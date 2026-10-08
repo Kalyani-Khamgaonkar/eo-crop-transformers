@@ -35,7 +35,6 @@ core/
     builder.py           assembles a model from the design choices
     search_space.py      combination generator + constraint checks
     registry.py          named presets (vit, vit_temporal_first, vit_tubelet, vit_cuboid)
-    tsvit.py             TSViT reference (wrapper around DeepSatModels)
   training/
     train.py             loop, AdamW/SGD, warmup + cosine, AMP, checkpoint + resume
     losses.py            masked cross-entropy, class weights
@@ -93,6 +92,17 @@ Same steps without `module load`. The cu128 wheel works on recent NVIDIA GPUs.
 
 ## Data
 
+### Quick start from raw PASTIS (what we use now)
+
+```bash
+python -m core.cli prepare_subset --pastis-dir ~/datasets/PASTIS     # select 5% + convert to 24x24
+python -m core.cli compute_stats --subset                            # normalisation from subset
+```
+Folds (Run I): train = folds 1, 2, 3; validation = fold 4; test = fold 5 (not used during tuning).
+The chosen patch IDs are saved in `subsets/patch_ids_<fraction>_s<seed>_I.json`.
+
+### Full dataset
+
 1. Put the PASTIS24 pickles (from the DeepSatModels conversion) in `$DATASET_DIR/pastis24/`.
 2. Check the keys of one file and, if needed, adjust `KEY_IMG`, `KEY_LABEL`, `KEY_DOY` in `core/data/pastis.py`:
    ```bash
@@ -142,17 +152,17 @@ dashboard http://hpc-status.ewi.utwente.nl/slurm/
 ## Workflow
 
 1. **Sanity**: `pytest -q`, then a synthetic run, then a 2-epoch real run to time one epoch.
-2. **Reproduce TSViT** on the 5% subset (~36.8% val mIoU) to confirm data and metrics match.
-3. **Hyperparameter sweep** (`hp_sweep.yaml`), one change at a time; copy the best value into `base`.
-4. **Freeze** the hyperparameters in the experiment files.
-5. **SO1 and SO2** experiments, 3 seeds for the final configurations.
+2. **Overfit check** on 2 to 3 real patches: loss must go near zero.
+3. **Hyperparameter sweep** for the baseline ViT on the small subset (`hp_sweep.yaml`, all runs in parallel).
+4. **Combine the winners** in `baseline_final.yaml`: 100 epochs × 3 seeds. This freezes the baseline.
+5. **SO1 and SO2** experiments against the baseline ViT, 3 seeds for final configurations.
 6. **Test** once per final model; leave-one-tile-out splits for RQ2.2.
 
 ## Notes
 
 - Cuboid tokens with large blocks exceed the parameter budget (embedding and head grow with block size). `list_search_space --show-invalid` lists which ones and why.
 - Joint attention with 2 × 2 patches gives 8,640 tokens per sample, above the token budget in `search_space.py` (`JOINT_TOKEN_BUDGET`). Raise it deliberately if you want to test it on the 96 GB GPUs.
-- The temporal-first model uses masked mean pooling over time; TSViT uses class tokens. Keep TSViT as the external reference.
+- The baseline ViT is the reference for every comparison. Published TSViT results are cited as context only.
 - Cluster maintenance days take the whole cluster offline; jobs resume from `last.pt` when resubmitted.
 
 ## References

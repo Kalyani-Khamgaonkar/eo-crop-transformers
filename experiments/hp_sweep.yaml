@@ -1,0 +1,30 @@
+# Hyperparameter sweep for the plain ViT baseline.
+# Change one thing at a time; copy the best value into `base` before the next step.
+# Run one entry:   python -m core.cli train --experiment-config experiments/hp_sweep.yaml --run-index 0
+# Run all as a Slurm array:   sbatch --array=0-N slurm/sweep.sh experiments/hp_sweep.yaml
+
+name: hp_sweep_vit
+
+base:
+  model.tokenizer: patch2d
+  model.patch_size: 4
+  model.attention: joint
+  model.spatial_pe: learnable
+  model.temporal_enc: doy_sin
+  data.subset_fraction: 0.05
+  train.epochs: 50
+
+runs:
+  # Step 1: learning rate
+  - {id: lr_1e-4, train.lr: 1.0e-4}
+  - {id: lr_3e-4, train.lr: 3.0e-4}
+  - {id: lr_1e-3, train.lr: 1.0e-3}
+  # Step 2: optimiser (set lr to the best from step 1 first)
+  - {id: opt_sgd, train.optimizer: sgd}
+  # Step 3: regularisation
+  - {id: wd_0.01, train.weight_decay: 0.01}
+  - {id: wd_0.05, train.weight_decay: 0.05}
+  - {id: loss_weighted, train.loss: weighted_ce}
+  - {id: droppath_0.1, model.drop_path: 0.1}
+  - {id: dropout_0.1, model.dropout: 0.1}
+  - {id: augment, train.augment: true}

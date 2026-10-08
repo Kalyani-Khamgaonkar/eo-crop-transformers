@@ -1,0 +1,18 @@
+# SO1: compare spatial-temporal patchification and representation strategies.
+# Fill `base` with the frozen hyperparameters from hp_sweep before running.
+# Valid combinations can also be generated automatically:
+#   python -m core.cli list_search_space
+
+name: so1_patchification
+
+base:
+  model.spatial_pe: learnable
+  model.temporal_enc: doy_sin
+  train.epochs: 100
+
+runs:
+  - {id: patch2d_joint,          model.tokenizer: patch2d, model.patch_size: 4, model.attention: joint}
+  - {id: patch2d_temporal_first, model.tokenizer: patch2d, model.patch_size: 2, model.attention: temporal_first}
+  - {id: tubelet_t2_joint,       model.tokenizer: tubelet, model.patch_size: 4, model.tubelet_t: 2, model.attention: joint}
+  - {id: tubelet_t4_joint,       model.tokenizer: tubelet, model.patch_size: 4, model.tubelet_t: 4, model.attention: joint}
+  - {id: cuboid_t4_p6_joint,     model.tokenizer: cuboid,  model.patch_size: 6, model.tubelet_t: 4, model.attention: joint}

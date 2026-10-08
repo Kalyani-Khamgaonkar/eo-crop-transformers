@@ -1,0 +1,25 @@
+# data and outputs: never in git
+datasets/
+outputs/
+logs/*
+!logs/.gitkeep
+*.pt
+*.pth
+*.pickle
+*.npy
+*.npz
+
+# local settings
+.env
+
+# python
+__pycache__/
+*.pyc
+.pytest_cache/
+.ipynb_checkpoints/
+*.egg-info/
+
+# editors / OS
+.vscode/
+.idea/
+.DS_Store

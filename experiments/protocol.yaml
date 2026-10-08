@@ -1,0 +1,82 @@
+# Fixed shared protocol. Every experiment starts from this file.
+# Experiment configs may ONLY override keys listed under `tunable`.
+# Changing anything else here changes the protocol for everyone: agree it with the group first.
+
+protocol_version: "1.0"
+
+data:
+  dataset: pastis24
+  bands: 10                    # B2, B3, B4, B5, B6, B7, B8, B8A, B11, B12
+  img_size: 24                 # 24 x 24 crops (PASTIS24, TSViT setting)
+  max_dates: 60                # pad / sample to this many dates
+  num_classes: 19              # 18 crops + background
+  ignore_index: 19             # void label
+  fold_run: I                  # development run: train 1-2-3, val 4, test 5
+  subset_fraction: 0.05        # reduced-data screening
+  subset_seed: 42
+  num_workers: 4
+
+model:
+  dim: 128
+  depth_temporal: 4            # temporal / joint encoder depth
+  depth_spatial: 4             # spatial encoder depth (factorised models only)
+  heads: 4
+  mlp_ratio: 4.0
+  param_budget: 1.7e6          # target trainable parameters
+  param_tolerance: 0.10        # +/- 10 percent, run stops if outside
+  # design axes (the things under study)
+  tokenizer: patch2d           # patch2d | tubelet | cuboid
+  patch_size: 2
+  tubelet_t: 1                 # dates per token (patch2d forces 1)
+  attention: temporal_first    # temporal_first | joint
+  spatial_pe: learnable        # learnable | sinusoidal | relative | none
+  temporal_enc: doy_sin        # doy_sin | doy_learned | index_learned
+  dropout: 0.0
+  drop_path: 0.0
+
+train:
+  epochs: 100
+  batch_size: 8
+  optimizer: adamw             # adamw | sgd
+  lr: 1.0e-3
+  min_lr: 5.0e-6
+  warmup_epochs: 10
+  weight_decay: 0.0
+  betas: [0.9, 0.999]
+  momentum: 0.9                # sgd only
+  grad_clip: 0.0               # 0 = off
+  loss: ce                     # ce | weighted_ce
+  augment: false               # flips + 90 degree rotations
+  amp: true                    # bf16 mixed precision on GPU
+  seed: 42
+
+eval:
+  primary_metric: miou_macro
+  select_on: val               # best validation checkpoint, test once at the end
+
+# Keys an experiment config is allowed to change (dot notation).
+tunable:
+  - data.subset_fraction
+  - data.fold_run
+  - data.num_workers
+  - model.tokenizer
+  - model.patch_size
+  - model.tubelet_t
+  - model.attention
+  - model.spatial_pe
+  - model.temporal_enc
+  - model.dropout
+  - model.drop_path
+  - train.epochs
+  - train.optimizer
+  - train.lr
+  - train.min_lr
+  - train.warmup_epochs
+  - train.weight_decay
+  - train.betas
+  - train.momentum
+  - train.grad_clip
+  - train.loss
+  - train.augment
+  - train.amp
+  - train.seed

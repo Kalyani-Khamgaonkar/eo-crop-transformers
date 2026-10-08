@@ -1,12 +1,4 @@
-# STAGE B: combine the settings that helped in hp_sweep, train longer, 3 seeds.
-# The `tuned` runs become the frozen baseline ViT for SO1 and SO2.
-# The `ref` runs show how much tuning helped (same seeds, no tuning).
-#
-# Before running: fill in `tuned` from the hp_sweep report. Keep a setting only if it
-# beat `ref` by more than ~1 mIoU point (smaller differences can be noise).
-#   N=$(python -m core.cli num_runs experiments/baseline_final.yaml)
-#   sbatch --array=0-$((N-1)) slurm/sweep.sh experiments/baseline_final.yaml
-
+# STAGE B: confirm the sweep winners with 3 seeds (baseline ViT, 5% subset, 100 epochs).
 name: baseline_vit
 
 base:
@@ -17,15 +9,14 @@ base:
   model.spatial_pe: learnable
   model.temporal_enc: doy_sin
   data.subset_fraction: 0.05
-  train.epochs: 100
-  train.warmup_epochs: 10
 
 runs:
-  # reference recipe, 3 seeds
   - {id: ref, train.seed: 42}
   - {id: ref, train.seed: 1}
   - {id: ref, train.seed: 2}
-  # tuned recipe, 3 seeds: EDIT these values from the sweep results
-  - {id: tuned, train.seed: 42, train.lr: 1.0e-3, train.weight_decay: 0.05, model.drop_path: 0.1, train.augment: true, train.loss: ce}
-  - {id: tuned, train.seed: 1,  train.lr: 1.0e-3, train.weight_decay: 0.05, model.drop_path: 0.1, train.augment: true, train.loss: ce}
-  - {id: tuned, train.seed: 2,  train.lr: 1.0e-3, train.weight_decay: 0.05, model.drop_path: 0.1, train.augment: true, train.loss: ce}
+  - {id: tuned_adamw, train.seed: 42, model.dropout: 0.1, model.drop_path: 0.1, train.weight_decay: 0.05, train.loss: weighted_ce}
+  - {id: tuned_adamw, train.seed: 1,  model.dropout: 0.1, model.drop_path: 0.1, train.weight_decay: 0.05, train.loss: weighted_ce}
+  - {id: tuned_adamw, train.seed: 2,  model.dropout: 0.1, model.drop_path: 0.1, train.weight_decay: 0.05, train.loss: weighted_ce}
+  - {id: tuned_sgd, train.seed: 42, train.optimizer: sgd, train.lr: 1.0e-2, model.dropout: 0.1, model.drop_path: 0.1, train.weight_decay: 0.05, train.loss: weighted_ce}
+  - {id: tuned_sgd, train.seed: 1,  train.optimizer: sgd, train.lr: 1.0e-2, model.dropout: 0.1, model.drop_path: 0.1, train.weight_decay: 0.05, train.loss: weighted_ce}
+  - {id: tuned_sgd, train.seed: 2,  train.optimizer: sgd, train.lr: 1.0e-2, model.dropout: 0.1, model.drop_path: 0.1, train.weight_decay: 0.05, train.loss: weighted_ce}

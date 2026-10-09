@@ -133,6 +133,6 @@ dashboard http://hpc-status.ewi.utwente.nl/slurm/
 3. **Hyperparameter sweep** for the baseline ViT on the small subset (`hp_sweep.yaml`, all runs in parallel).
 4. **Combine the winners** in `baseline_final.yaml`: 100 epochs × 3 seeds. This freezes the baseline.
 5. **SO1 and SO2** experiments against the baseline ViT, 3 seeds for final configurations.
-6. **Test** once per final model; leave-one-tile-out splits for RQ2.2.
+
 
 

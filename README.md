@@ -3,8 +3,7 @@
 Controlled comparison of spatial-temporal patchification and positional encoding for
 transformer-based crop classification on PASTIS (Sentinel-2).
 
-MSc thesis, M-GEO GeoAI, Faculty ITC, University of Twente.
-Kalyani Khamgaonkar · Supervisors: Dr. Mahdi Farnaghi, Dr. M. Khodadadzadeh
+
 
 ## Research questions
 
@@ -67,28 +66,6 @@ reports/                  summary_<experiment>.csv, report_<experiment>.md
 Run names look like `hp_sweep_vit__lr_3e-4__s42__a1b2c3`: experiment, run id, seed and a
 short hash of the settings. A job only resumes a run with exactly the same settings.
 
-## Setup
-
-### Cluster (UT EEMCS HPC)
-
-```bash
-module load miniconda3/25.7
-eval "$(conda shell.bash hook)"
-conda create -n thesis python=3.11 -c conda-forge --override-channels -y
-conda activate thesis
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
-pip install -r requirements.txt
-
-git clone https://github.com/<user>/<repo>.git && cd <repo>
-cp .env.example .env        # then edit DATASET_DIR and OUTPUT_DIR
-pytest -q                   # all tests should pass (CPU is fine)
-```
-
-Rules: edit and submit on the head node, train only through `sbatch`, never ssh into compute nodes.
-
-### Laptop
-
-Same steps without `module load`. The cu128 wheel works on recent NVIDIA GPUs.
 
 ## Data
 
@@ -158,14 +135,4 @@ dashboard http://hpc-status.ewi.utwente.nl/slurm/
 5. **SO1 and SO2** experiments against the baseline ViT, 3 seeds for final configurations.
 6. **Test** once per final model; leave-one-tile-out splits for RQ2.2.
 
-## Notes
 
-- Cuboid tokens with large blocks exceed the parameter budget (embedding and head grow with block size). `list_search_space --show-invalid` lists which ones and why.
-- Joint attention with 2 × 2 patches gives 8,640 tokens per sample, above the token budget in `search_space.py` (`JOINT_TOKEN_BUDGET`). Raise it deliberately if you want to test it on the 96 GB GPUs.
-- The baseline ViT is the reference for every comparison. Published TSViT results are cited as context only.
-- Cluster maintenance days take the whole cluster offline; jobs resume from `last.pt` when resubmitted.
-
-## References
-
-Dosovitskiy et al. (2021) ViT · Tarasiou et al. (2023) TSViT · Sainte Fare Garnot & Landrieu (2021) PASTIS / U-TAE ·
-Szwarcman et al. (2024) Prithvi-EO-2.0 · Gao et al. (2022) Earthformer · Shaw et al. (2018) relative position representations

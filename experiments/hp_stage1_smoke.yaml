@@ -1,0 +1,25 @@
+# Stage 1 grid: optimiser x LR x weight decay, 5% subset, run I
+name: hp_stage1_smoke
+
+base:
+  model.tokenizer: patch2d
+  model.patch_size: 4
+  model.tubelet_t: 1
+  model.attention: joint
+  model.spatial_pe: learnable
+  model.temporal_enc: doy_sin
+  model.dropout: 0.1
+  model.drop_path: 0.1
+  train.loss: weighted_ce
+  data.subset_fraction: 0.05
+  data.num_workers: 6
+  train.epochs: 2
+  train.warmup_epochs: 1
+
+runs:
+  - {id: s1_000_adamw, train.optimizer: adamw, train.lr: 1.0e-03, train.weight_decay: 5.0e-02}
+  - {id: s1_001_adam, train.optimizer: adam, train.lr: 1.0e-03, train.weight_decay: 1.0e-04}
+  - {id: s1_002_nadam, train.optimizer: nadam, train.lr: 1.0e-03, train.weight_decay: 1.0e-04}
+  - {id: s1_003_radam, train.optimizer: radam, train.lr: 1.0e-03, train.weight_decay: 1.0e-04}
+  - {id: s1_004_rmsprop, train.optimizer: rmsprop, train.lr: 1.0e-03, train.weight_decay: 1.0e-04}
+  - {id: s1_005_sgd, train.optimizer: sgd, train.lr: 1.0e-02, train.weight_decay: 1.0e-04}

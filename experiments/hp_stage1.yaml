@@ -1,0 +1,185 @@
+# Stage 1 grid: optimiser x LR x weight decay, 5% subset, run I
+name: hp_stage1
+
+base:
+  model.tokenizer: patch2d
+  model.patch_size: 4
+  model.tubelet_t: 1
+  model.attention: joint
+  model.spatial_pe: learnable
+  model.temporal_enc: doy_sin
+  model.dropout: 0.1
+  model.drop_path: 0.1
+  train.loss: weighted_ce
+  data.subset_fraction: 0.05
+  data.num_workers: 6
+
+runs:
+  - {id: s1_000_adamw, train.optimizer: adamw, train.lr: 3.0e-04, train.weight_decay: 0.0e+00}
+  - {id: s1_001_adam, train.optimizer: adam, train.lr: 3.0e-04, train.weight_decay: 0.0e+00}
+  - {id: s1_002_nadam, train.optimizer: nadam, train.lr: 3.0e-04, train.weight_decay: 0.0e+00}
+  - {id: s1_003_radam, train.optimizer: radam, train.lr: 3.0e-04, train.weight_decay: 0.0e+00}
+  - {id: s1_004_rmsprop, train.optimizer: rmsprop, train.lr: 3.0e-04, train.weight_decay: 0.0e+00}
+  - {id: s1_005_sgd, train.optimizer: sgd, train.lr: 3.0e-03, train.weight_decay: 0.0e+00}
+  - {id: s1_006_adamw, train.optimizer: adamw, train.lr: 3.0e-04, train.weight_decay: 1.0e-02}
+  - {id: s1_007_adam, train.optimizer: adam, train.lr: 3.0e-04, train.weight_decay: 1.0e-05}
+  - {id: s1_008_nadam, train.optimizer: nadam, train.lr: 3.0e-04, train.weight_decay: 1.0e-05}
+  - {id: s1_009_radam, train.optimizer: radam, train.lr: 3.0e-04, train.weight_decay: 1.0e-05}
+  - {id: s1_010_rmsprop, train.optimizer: rmsprop, train.lr: 3.0e-04, train.weight_decay: 1.0e-05}
+  - {id: s1_011_sgd, train.optimizer: sgd, train.lr: 3.0e-03, train.weight_decay: 1.0e-05}
+  - {id: s1_012_adamw, train.optimizer: adamw, train.lr: 3.0e-04, train.weight_decay: 5.0e-02}
+  - {id: s1_013_adam, train.optimizer: adam, train.lr: 3.0e-04, train.weight_decay: 1.0e-04}
+  - {id: s1_014_nadam, train.optimizer: nadam, train.lr: 3.0e-04, train.weight_decay: 1.0e-04}
+  - {id: s1_015_radam, train.optimizer: radam, train.lr: 3.0e-04, train.weight_decay: 1.0e-04}
+  - {id: s1_016_rmsprop, train.optimizer: rmsprop, train.lr: 3.0e-04, train.weight_decay: 1.0e-04}
+  - {id: s1_017_sgd, train.optimizer: sgd, train.lr: 3.0e-03, train.weight_decay: 1.0e-04}
+  - {id: s1_018_adamw, train.optimizer: adamw, train.lr: 3.0e-04, train.weight_decay: 1.0e-01}
+  - {id: s1_019_adam, train.optimizer: adam, train.lr: 3.0e-04, train.weight_decay: 5.0e-04}
+  - {id: s1_020_nadam, train.optimizer: nadam, train.lr: 3.0e-04, train.weight_decay: 5.0e-04}
+  - {id: s1_021_radam, train.optimizer: radam, train.lr: 3.0e-04, train.weight_decay: 5.0e-04}
+  - {id: s1_022_rmsprop, train.optimizer: rmsprop, train.lr: 3.0e-04, train.weight_decay: 5.0e-04}
+  - {id: s1_023_sgd, train.optimizer: sgd, train.lr: 3.0e-03, train.weight_decay: 5.0e-04}
+  - {id: s1_024_adamw, train.optimizer: adamw, train.lr: 1.0e-03, train.weight_decay: 0.0e+00}
+  - {id: s1_025_adam, train.optimizer: adam, train.lr: 1.0e-03, train.weight_decay: 0.0e+00}
+  - {id: s1_026_nadam, train.optimizer: nadam, train.lr: 1.0e-03, train.weight_decay: 0.0e+00}
+  - {id: s1_027_radam, train.optimizer: radam, train.lr: 1.0e-03, train.weight_decay: 0.0e+00}
+  - {id: s1_028_rmsprop, train.optimizer: rmsprop, train.lr: 1.0e-03, train.weight_decay: 0.0e+00}
+  - {id: s1_029_sgd, train.optimizer: sgd, train.lr: 1.0e-02, train.weight_decay: 0.0e+00}
+  - {id: s1_030_adamw, train.optimizer: adamw, train.lr: 1.0e-03, train.weight_decay: 1.0e-02}
+  - {id: s1_031_adam, train.optimizer: adam, train.lr: 1.0e-03, train.weight_decay: 1.0e-05}
+  - {id: s1_032_nadam, train.optimizer: nadam, train.lr: 1.0e-03, train.weight_decay: 1.0e-05}
+  - {id: s1_033_radam, train.optimizer: radam, train.lr: 1.0e-03, train.weight_decay: 1.0e-05}
+  - {id: s1_034_rmsprop, train.optimizer: rmsprop, train.lr: 1.0e-03, train.weight_decay: 1.0e-05}
+  - {id: s1_035_sgd, train.optimizer: sgd, train.lr: 1.0e-02, train.weight_decay: 1.0e-05}
+  - {id: s1_036_adamw, train.optimizer: adamw, train.lr: 1.0e-03, train.weight_decay: 5.0e-02}
+  - {id: s1_037_adam, train.optimizer: adam, train.lr: 1.0e-03, train.weight_decay: 1.0e-04}
+  - {id: s1_038_nadam, train.optimizer: nadam, train.lr: 1.0e-03, train.weight_decay: 1.0e-04}
+  - {id: s1_039_radam, train.optimizer: radam, train.lr: 1.0e-03, train.weight_decay: 1.0e-04}
+  - {id: s1_040_rmsprop, train.optimizer: rmsprop, train.lr: 1.0e-03, train.weight_decay: 1.0e-04}
+  - {id: s1_041_sgd, train.optimizer: sgd, train.lr: 1.0e-02, train.weight_decay: 1.0e-04}
+  - {id: s1_042_adamw, train.optimizer: adamw, train.lr: 1.0e-03, train.weight_decay: 1.0e-01}
+  - {id: s1_043_adam, train.optimizer: adam, train.lr: 1.0e-03, train.weight_decay: 5.0e-04}
+  - {id: s1_044_nadam, train.optimizer: nadam, train.lr: 1.0e-03, train.weight_decay: 5.0e-04}
+  - {id: s1_045_radam, train.optimizer: radam, train.lr: 1.0e-03, train.weight_decay: 5.0e-04}
+  - {id: s1_046_rmsprop, train.optimizer: rmsprop, train.lr: 1.0e-03, train.weight_decay: 5.0e-04}
+  - {id: s1_047_sgd, train.optimizer: sgd, train.lr: 1.0e-02, train.weight_decay: 5.0e-04}
+  - {id: s1_048_adamw, train.optimizer: adamw, train.lr: 1.0e-04, train.weight_decay: 0.0e+00}
+  - {id: s1_049_adam, train.optimizer: adam, train.lr: 1.0e-04, train.weight_decay: 0.0e+00}
+  - {id: s1_050_nadam, train.optimizer: nadam, train.lr: 1.0e-04, train.weight_decay: 0.0e+00}
+  - {id: s1_051_radam, train.optimizer: radam, train.lr: 1.0e-04, train.weight_decay: 0.0e+00}
+  - {id: s1_052_rmsprop, train.optimizer: rmsprop, train.lr: 1.0e-04, train.weight_decay: 0.0e+00}
+  - {id: s1_053_sgd, train.optimizer: sgd, train.lr: 1.0e-03, train.weight_decay: 0.0e+00}
+  - {id: s1_054_adamw, train.optimizer: adamw, train.lr: 1.0e-04, train.weight_decay: 1.0e-02}
+  - {id: s1_055_adam, train.optimizer: adam, train.lr: 1.0e-04, train.weight_decay: 1.0e-05}
+  - {id: s1_056_nadam, train.optimizer: nadam, train.lr: 1.0e-04, train.weight_decay: 1.0e-05}
+  - {id: s1_057_radam, train.optimizer: radam, train.lr: 1.0e-04, train.weight_decay: 1.0e-05}
+  - {id: s1_058_rmsprop, train.optimizer: rmsprop, train.lr: 1.0e-04, train.weight_decay: 1.0e-05}
+  - {id: s1_059_sgd, train.optimizer: sgd, train.lr: 1.0e-03, train.weight_decay: 1.0e-05}
+  - {id: s1_060_adamw, train.optimizer: adamw, train.lr: 1.0e-04, train.weight_decay: 5.0e-02}
+  - {id: s1_061_adam, train.optimizer: adam, train.lr: 1.0e-04, train.weight_decay: 1.0e-04}
+  - {id: s1_062_nadam, train.optimizer: nadam, train.lr: 1.0e-04, train.weight_decay: 1.0e-04}
+  - {id: s1_063_radam, train.optimizer: radam, train.lr: 1.0e-04, train.weight_decay: 1.0e-04}
+  - {id: s1_064_rmsprop, train.optimizer: rmsprop, train.lr: 1.0e-04, train.weight_decay: 1.0e-04}
+  - {id: s1_065_sgd, train.optimizer: sgd, train.lr: 1.0e-03, train.weight_decay: 1.0e-04}
+  - {id: s1_066_adamw, train.optimizer: adamw, train.lr: 1.0e-04, train.weight_decay: 1.0e-01}
+  - {id: s1_067_adam, train.optimizer: adam, train.lr: 1.0e-04, train.weight_decay: 5.0e-04}
+  - {id: s1_068_nadam, train.optimizer: nadam, train.lr: 1.0e-04, train.weight_decay: 5.0e-04}
+  - {id: s1_069_radam, train.optimizer: radam, train.lr: 1.0e-04, train.weight_decay: 5.0e-04}
+  - {id: s1_070_rmsprop, train.optimizer: rmsprop, train.lr: 1.0e-04, train.weight_decay: 5.0e-04}
+  - {id: s1_071_sgd, train.optimizer: sgd, train.lr: 1.0e-03, train.weight_decay: 5.0e-04}
+  - {id: s1_072_adamw, train.optimizer: adamw, train.lr: 3.0e-03, train.weight_decay: 0.0e+00}
+  - {id: s1_073_adam, train.optimizer: adam, train.lr: 3.0e-03, train.weight_decay: 0.0e+00}
+  - {id: s1_074_nadam, train.optimizer: nadam, train.lr: 3.0e-03, train.weight_decay: 0.0e+00}
+  - {id: s1_075_radam, train.optimizer: radam, train.lr: 3.0e-03, train.weight_decay: 0.0e+00}
+  - {id: s1_076_rmsprop, train.optimizer: rmsprop, train.lr: 3.0e-03, train.weight_decay: 0.0e+00}
+  - {id: s1_077_sgd, train.optimizer: sgd, train.lr: 3.0e-02, train.weight_decay: 0.0e+00}
+  - {id: s1_078_adamw, train.optimizer: adamw, train.lr: 3.0e-03, train.weight_decay: 1.0e-02}
+  - {id: s1_079_adam, train.optimizer: adam, train.lr: 3.0e-03, train.weight_decay: 1.0e-05}
+  - {id: s1_080_nadam, train.optimizer: nadam, train.lr: 3.0e-03, train.weight_decay: 1.0e-05}
+  - {id: s1_081_radam, train.optimizer: radam, train.lr: 3.0e-03, train.weight_decay: 1.0e-05}
+  - {id: s1_082_rmsprop, train.optimizer: rmsprop, train.lr: 3.0e-03, train.weight_decay: 1.0e-05}
+  - {id: s1_083_sgd, train.optimizer: sgd, train.lr: 3.0e-02, train.weight_decay: 1.0e-05}
+  - {id: s1_084_adamw, train.optimizer: adamw, train.lr: 3.0e-03, train.weight_decay: 5.0e-02}
+  - {id: s1_085_adam, train.optimizer: adam, train.lr: 3.0e-03, train.weight_decay: 1.0e-04}
+  - {id: s1_086_nadam, train.optimizer: nadam, train.lr: 3.0e-03, train.weight_decay: 1.0e-04}
+  - {id: s1_087_radam, train.optimizer: radam, train.lr: 3.0e-03, train.weight_decay: 1.0e-04}
+  - {id: s1_088_rmsprop, train.optimizer: rmsprop, train.lr: 3.0e-03, train.weight_decay: 1.0e-04}
+  - {id: s1_089_sgd, train.optimizer: sgd, train.lr: 3.0e-02, train.weight_decay: 1.0e-04}
+  - {id: s1_090_adamw, train.optimizer: adamw, train.lr: 3.0e-03, train.weight_decay: 1.0e-01}
+  - {id: s1_091_adam, train.optimizer: adam, train.lr: 3.0e-03, train.weight_decay: 5.0e-04}
+  - {id: s1_092_nadam, train.optimizer: nadam, train.lr: 3.0e-03, train.weight_decay: 5.0e-04}
+  - {id: s1_093_radam, train.optimizer: radam, train.lr: 3.0e-03, train.weight_decay: 5.0e-04}
+  - {id: s1_094_rmsprop, train.optimizer: rmsprop, train.lr: 3.0e-03, train.weight_decay: 5.0e-04}
+  - {id: s1_095_sgd, train.optimizer: sgd, train.lr: 3.0e-02, train.weight_decay: 5.0e-04}
+  - {id: s1_096_adamw, train.optimizer: adamw, train.lr: 3.0e-05, train.weight_decay: 0.0e+00}
+  - {id: s1_097_adam, train.optimizer: adam, train.lr: 3.0e-05, train.weight_decay: 0.0e+00}
+  - {id: s1_098_nadam, train.optimizer: nadam, train.lr: 3.0e-05, train.weight_decay: 0.0e+00}
+  - {id: s1_099_radam, train.optimizer: radam, train.lr: 3.0e-05, train.weight_decay: 0.0e+00}
+  - {id: s1_100_rmsprop, train.optimizer: rmsprop, train.lr: 3.0e-05, train.weight_decay: 0.0e+00}
+  - {id: s1_101_sgd, train.optimizer: sgd, train.lr: 3.0e-04, train.weight_decay: 0.0e+00}
+  - {id: s1_102_adamw, train.optimizer: adamw, train.lr: 3.0e-05, train.weight_decay: 1.0e-02}
+  - {id: s1_103_adam, train.optimizer: adam, train.lr: 3.0e-05, train.weight_decay: 1.0e-05}
+  - {id: s1_104_nadam, train.optimizer: nadam, train.lr: 3.0e-05, train.weight_decay: 1.0e-05}
+  - {id: s1_105_radam, train.optimizer: radam, train.lr: 3.0e-05, train.weight_decay: 1.0e-05}
+  - {id: s1_106_rmsprop, train.optimizer: rmsprop, train.lr: 3.0e-05, train.weight_decay: 1.0e-05}
+  - {id: s1_107_sgd, train.optimizer: sgd, train.lr: 3.0e-04, train.weight_decay: 1.0e-05}
+  - {id: s1_108_adamw, train.optimizer: adamw, train.lr: 3.0e-05, train.weight_decay: 5.0e-02}
+  - {id: s1_109_adam, train.optimizer: adam, train.lr: 3.0e-05, train.weight_decay: 1.0e-04}
+  - {id: s1_110_nadam, train.optimizer: nadam, train.lr: 3.0e-05, train.weight_decay: 1.0e-04}
+  - {id: s1_111_radam, train.optimizer: radam, train.lr: 3.0e-05, train.weight_decay: 1.0e-04}
+  - {id: s1_112_rmsprop, train.optimizer: rmsprop, train.lr: 3.0e-05, train.weight_decay: 1.0e-04}
+  - {id: s1_113_sgd, train.optimizer: sgd, train.lr: 3.0e-04, train.weight_decay: 1.0e-04}
+  - {id: s1_114_adamw, train.optimizer: adamw, train.lr: 3.0e-05, train.weight_decay: 1.0e-01}
+  - {id: s1_115_adam, train.optimizer: adam, train.lr: 3.0e-05, train.weight_decay: 5.0e-04}
+  - {id: s1_116_nadam, train.optimizer: nadam, train.lr: 3.0e-05, train.weight_decay: 5.0e-04}
+  - {id: s1_117_radam, train.optimizer: radam, train.lr: 3.0e-05, train.weight_decay: 5.0e-04}
+  - {id: s1_118_rmsprop, train.optimizer: rmsprop, train.lr: 3.0e-05, train.weight_decay: 5.0e-04}
+  - {id: s1_119_sgd, train.optimizer: sgd, train.lr: 3.0e-04, train.weight_decay: 5.0e-04}
+  - {id: s1_120_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 0.0e+00}
+  - {id: s1_121_adam, train.optimizer: adam, train.lr: 1.0e-02, train.weight_decay: 0.0e+00}
+  - {id: s1_122_nadam, train.optimizer: nadam, train.lr: 1.0e-02, train.weight_decay: 0.0e+00}
+  - {id: s1_123_radam, train.optimizer: radam, train.lr: 1.0e-02, train.weight_decay: 0.0e+00}
+  - {id: s1_124_rmsprop, train.optimizer: rmsprop, train.lr: 1.0e-02, train.weight_decay: 0.0e+00}
+  - {id: s1_125_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 0.0e+00}
+  - {id: s1_126_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-02}
+  - {id: s1_127_adam, train.optimizer: adam, train.lr: 1.0e-02, train.weight_decay: 1.0e-05}
+  - {id: s1_128_nadam, train.optimizer: nadam, train.lr: 1.0e-02, train.weight_decay: 1.0e-05}
+  - {id: s1_129_radam, train.optimizer: radam, train.lr: 1.0e-02, train.weight_decay: 1.0e-05}
+  - {id: s1_130_rmsprop, train.optimizer: rmsprop, train.lr: 1.0e-02, train.weight_decay: 1.0e-05}
+  - {id: s1_131_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 1.0e-05}
+  - {id: s1_132_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 5.0e-02}
+  - {id: s1_133_adam, train.optimizer: adam, train.lr: 1.0e-02, train.weight_decay: 1.0e-04}
+  - {id: s1_134_nadam, train.optimizer: nadam, train.lr: 1.0e-02, train.weight_decay: 1.0e-04}
+  - {id: s1_135_radam, train.optimizer: radam, train.lr: 1.0e-02, train.weight_decay: 1.0e-04}
+  - {id: s1_136_rmsprop, train.optimizer: rmsprop, train.lr: 1.0e-02, train.weight_decay: 1.0e-04}
+  - {id: s1_137_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 1.0e-04}
+  - {id: s1_138_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01}
+  - {id: s1_139_adam, train.optimizer: adam, train.lr: 1.0e-02, train.weight_decay: 5.0e-04}
+  - {id: s1_140_nadam, train.optimizer: nadam, train.lr: 1.0e-02, train.weight_decay: 5.0e-04}
+  - {id: s1_141_radam, train.optimizer: radam, train.lr: 1.0e-02, train.weight_decay: 5.0e-04}
+  - {id: s1_142_rmsprop, train.optimizer: rmsprop, train.lr: 1.0e-02, train.weight_decay: 5.0e-04}
+  - {id: s1_143_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04}
+  - {id: s1_144_adamw, train.optimizer: adamw, train.lr: 1.0e-05, train.weight_decay: 0.0e+00}
+  - {id: s1_145_adam, train.optimizer: adam, train.lr: 1.0e-05, train.weight_decay: 0.0e+00}
+  - {id: s1_146_nadam, train.optimizer: nadam, train.lr: 1.0e-05, train.weight_decay: 0.0e+00}
+  - {id: s1_147_radam, train.optimizer: radam, train.lr: 1.0e-05, train.weight_decay: 0.0e+00}
+  - {id: s1_148_rmsprop, train.optimizer: rmsprop, train.lr: 1.0e-05, train.weight_decay: 0.0e+00}
+  - {id: s1_149_sgd, train.optimizer: sgd, train.lr: 1.0e-04, train.weight_decay: 0.0e+00}
+  - {id: s1_150_adamw, train.optimizer: adamw, train.lr: 1.0e-05, train.weight_decay: 1.0e-02}
+  - {id: s1_151_adam, train.optimizer: adam, train.lr: 1.0e-05, train.weight_decay: 1.0e-05}
+  - {id: s1_152_nadam, train.optimizer: nadam, train.lr: 1.0e-05, train.weight_decay: 1.0e-05}
+  - {id: s1_153_radam, train.optimizer: radam, train.lr: 1.0e-05, train.weight_decay: 1.0e-05}
+  - {id: s1_154_rmsprop, train.optimizer: rmsprop, train.lr: 1.0e-05, train.weight_decay: 1.0e-05}
+  - {id: s1_155_sgd, train.optimizer: sgd, train.lr: 1.0e-04, train.weight_decay: 1.0e-05}
+  - {id: s1_156_adamw, train.optimizer: adamw, train.lr: 1.0e-05, train.weight_decay: 5.0e-02}
+  - {id: s1_157_adam, train.optimizer: adam, train.lr: 1.0e-05, train.weight_decay: 1.0e-04}
+  - {id: s1_158_nadam, train.optimizer: nadam, train.lr: 1.0e-05, train.weight_decay: 1.0e-04}
+  - {id: s1_159_radam, train.optimizer: radam, train.lr: 1.0e-05, train.weight_decay: 1.0e-04}
+  - {id: s1_160_rmsprop, train.optimizer: rmsprop, train.lr: 1.0e-05, train.weight_decay: 1.0e-04}
+  - {id: s1_161_sgd, train.optimizer: sgd, train.lr: 1.0e-04, train.weight_decay: 1.0e-04}
+  - {id: s1_162_adamw, train.optimizer: adamw, train.lr: 1.0e-05, train.weight_decay: 1.0e-01}
+  - {id: s1_163_adam, train.optimizer: adam, train.lr: 1.0e-05, train.weight_decay: 5.0e-04}
+  - {id: s1_164_nadam, train.optimizer: nadam, train.lr: 1.0e-05, train.weight_decay: 5.0e-04}
+  - {id: s1_165_radam, train.optimizer: radam, train.lr: 1.0e-05, train.weight_decay: 5.0e-04}
+  - {id: s1_166_rmsprop, train.optimizer: rmsprop, train.lr: 1.0e-05, train.weight_decay: 5.0e-04}
+  - {id: s1_167_sgd, train.optimizer: sgd, train.lr: 1.0e-04, train.weight_decay: 5.0e-04}

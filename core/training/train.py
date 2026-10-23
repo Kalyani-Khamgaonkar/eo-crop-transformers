@@ -81,6 +81,11 @@ def build_optimizer(model: torch.nn.Module, cfg: dict) -> torch.optim.Optimizer:
         (no_decay if p.ndim < 2 or "pe" in name.split(".")[-1] or "table" in name else decay).append(p)
     groups = [{"params": decay, "weight_decay": t["weight_decay"]},
               {"params": no_decay, "weight_decay": 0.0}]
+    _extra = {"adam": torch.optim.Adam, "nadam": torch.optim.NAdam, "radam": torch.optim.RAdam}
+    if t["optimizer"] in _extra:  # coupled L2 weight decay, taken from the param groups
+        return _extra[t["optimizer"]](groups, lr=t["lr"], betas=tuple(t["betas"]))
+    if t["optimizer"] == "rmsprop":  # coupled L2 weight decay, no momentum
+        return torch.optim.RMSprop(groups, lr=t["lr"])
     if t["optimizer"] == "adamw":
         return torch.optim.AdamW(groups, lr=t["lr"], betas=tuple(t["betas"]))
     if t["optimizer"] == "sgd":

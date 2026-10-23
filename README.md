@@ -90,7 +90,7 @@ The chosen patch IDs are saved in `subsets/patch_ids_<fraction>_s<seed>_I.json`.
    sbatch slurm/prepare_data.sh /path/to/PASTIS/metadata.geojson
    ```
    This writes `splits/I..V/`, `splits/LOTO_<tile>/`, `subsets/0.05_s42/I/`, `stats/norm_I.json`.
-   If you already have lists from your own `make_folds.py` / `make_subset.py`, copy them into the same folders instead.
+  
 
 ## Usage
 

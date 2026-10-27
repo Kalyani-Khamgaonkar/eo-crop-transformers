@@ -1,0 +1,29 @@
+# Stage 1 edge extension: SGD and AdamW peaked at the edge of the LR / WD range
+name: hp_stage1_edge
+
+base:
+  model.tokenizer: patch2d
+  model.patch_size: 4
+  model.tubelet_t: 1
+  model.attention: joint
+  model.spatial_pe: learnable
+  model.temporal_enc: doy_sin
+  model.dropout: 0.1
+  model.drop_path: 0.1
+  train.loss: weighted_ce
+  data.subset_fraction: 0.05
+  data.num_workers: 6
+
+runs:
+  - {id: e1_00_sgd, train.optimizer: sgd, train.lr: 3.0e-01, train.weight_decay: 1.0e-04}
+  - {id: e1_01_sgd, train.optimizer: sgd, train.lr: 3.0e-01, train.weight_decay: 5.0e-04}
+  - {id: e1_02_sgd, train.optimizer: sgd, train.lr: 3.0e-01, train.weight_decay: 1.0e-03}
+  - {id: e1_03_sgd, train.optimizer: sgd, train.lr: 1.0e+00, train.weight_decay: 1.0e-04}
+  - {id: e1_04_sgd, train.optimizer: sgd, train.lr: 1.0e+00, train.weight_decay: 5.0e-04}
+  - {id: e1_05_sgd, train.optimizer: sgd, train.lr: 1.0e+00, train.weight_decay: 1.0e-03}
+  - {id: e1_06_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 1.0e-03}
+  - {id: e1_07_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 2.0e-01}
+  - {id: e1_08_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 3.0e-01}
+  - {id: e1_09_adamw, train.optimizer: adamw, train.lr: 3.0e-02, train.weight_decay: 2.0e-01}
+  - {id: e1_10_adamw, train.optimizer: adamw, train.lr: 3.0e-02, train.weight_decay: 3.0e-01}
+  - {id: e1_11_adamw, train.optimizer: adamw, train.lr: 3.0e-02, train.weight_decay: 1.0e-01}

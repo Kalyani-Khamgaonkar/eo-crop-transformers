@@ -1,0 +1,123 @@
+# Stage 2: top-2 Stage 1 configs x dropout x drop path x augmentation x label smoothing (ParameterGrid)
+name: hp_stage2
+
+base:
+  model.tokenizer: patch2d
+  model.patch_size: 4
+  model.tubelet_t: 1
+  model.attention: joint
+  model.spatial_pe: learnable
+  model.temporal_enc: doy_sin
+  train.loss: weighted_ce
+  data.subset_fraction: 0.05
+  data.num_workers: 6
+
+runs:
+  - {id: s2_000_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 0.0e+00, model.dropout: 0.0e+00, train.augment: false, train.label_smoothing: 0.0e+00}
+  - {id: s2_001_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 0.0e+00, model.dropout: 0.0e+00, train.augment: false, train.label_smoothing: 0.0e+00}
+  - {id: s2_002_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 0.0e+00, model.dropout: 0.0e+00, train.augment: false, train.label_smoothing: 1.0e-01}
+  - {id: s2_003_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 0.0e+00, model.dropout: 0.0e+00, train.augment: false, train.label_smoothing: 1.0e-01}
+  - {id: s2_004_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 0.0e+00, model.dropout: 0.0e+00, train.augment: flip, train.label_smoothing: 0.0e+00}
+  - {id: s2_005_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 0.0e+00, model.dropout: 0.0e+00, train.augment: flip, train.label_smoothing: 0.0e+00}
+  - {id: s2_006_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 0.0e+00, model.dropout: 0.0e+00, train.augment: flip, train.label_smoothing: 1.0e-01}
+  - {id: s2_007_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 0.0e+00, model.dropout: 0.0e+00, train.augment: flip, train.label_smoothing: 1.0e-01}
+  - {id: s2_008_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 0.0e+00, model.dropout: 0.0e+00, train.augment: flip_date, train.label_smoothing: 0.0e+00}
+  - {id: s2_009_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 0.0e+00, model.dropout: 0.0e+00, train.augment: flip_date, train.label_smoothing: 0.0e+00}
+  - {id: s2_010_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 0.0e+00, model.dropout: 0.0e+00, train.augment: flip_date, train.label_smoothing: 1.0e-01}
+  - {id: s2_011_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 0.0e+00, model.dropout: 0.0e+00, train.augment: flip_date, train.label_smoothing: 1.0e-01}
+  - {id: s2_012_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 0.0e+00, model.dropout: 1.0e-01, train.augment: false, train.label_smoothing: 0.0e+00}
+  - {id: s2_013_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 0.0e+00, model.dropout: 1.0e-01, train.augment: false, train.label_smoothing: 0.0e+00}
+  - {id: s2_014_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 0.0e+00, model.dropout: 1.0e-01, train.augment: false, train.label_smoothing: 1.0e-01}
+  - {id: s2_015_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 0.0e+00, model.dropout: 1.0e-01, train.augment: false, train.label_smoothing: 1.0e-01}
+  - {id: s2_016_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 0.0e+00, model.dropout: 1.0e-01, train.augment: flip, train.label_smoothing: 0.0e+00}
+  - {id: s2_017_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 0.0e+00, model.dropout: 1.0e-01, train.augment: flip, train.label_smoothing: 0.0e+00}
+  - {id: s2_018_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 0.0e+00, model.dropout: 1.0e-01, train.augment: flip, train.label_smoothing: 1.0e-01}
+  - {id: s2_019_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 0.0e+00, model.dropout: 1.0e-01, train.augment: flip, train.label_smoothing: 1.0e-01}
+  - {id: s2_020_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 0.0e+00, model.dropout: 1.0e-01, train.augment: flip_date, train.label_smoothing: 0.0e+00}
+  - {id: s2_021_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 0.0e+00, model.dropout: 1.0e-01, train.augment: flip_date, train.label_smoothing: 0.0e+00}
+  - {id: s2_022_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 0.0e+00, model.dropout: 1.0e-01, train.augment: flip_date, train.label_smoothing: 1.0e-01}
+  - {id: s2_023_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 0.0e+00, model.dropout: 1.0e-01, train.augment: flip_date, train.label_smoothing: 1.0e-01}
+  - {id: s2_024_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 0.0e+00, model.dropout: 2.0e-01, train.augment: false, train.label_smoothing: 0.0e+00}
+  - {id: s2_025_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 0.0e+00, model.dropout: 2.0e-01, train.augment: false, train.label_smoothing: 0.0e+00}
+  - {id: s2_026_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 0.0e+00, model.dropout: 2.0e-01, train.augment: false, train.label_smoothing: 1.0e-01}
+  - {id: s2_027_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 0.0e+00, model.dropout: 2.0e-01, train.augment: false, train.label_smoothing: 1.0e-01}
+  - {id: s2_028_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 0.0e+00, model.dropout: 2.0e-01, train.augment: flip, train.label_smoothing: 0.0e+00}
+  - {id: s2_029_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 0.0e+00, model.dropout: 2.0e-01, train.augment: flip, train.label_smoothing: 0.0e+00}
+  - {id: s2_030_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 0.0e+00, model.dropout: 2.0e-01, train.augment: flip, train.label_smoothing: 1.0e-01}
+  - {id: s2_031_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 0.0e+00, model.dropout: 2.0e-01, train.augment: flip, train.label_smoothing: 1.0e-01}
+  - {id: s2_032_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 0.0e+00, model.dropout: 2.0e-01, train.augment: flip_date, train.label_smoothing: 0.0e+00}
+  - {id: s2_033_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 0.0e+00, model.dropout: 2.0e-01, train.augment: flip_date, train.label_smoothing: 0.0e+00}
+  - {id: s2_034_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 0.0e+00, model.dropout: 2.0e-01, train.augment: flip_date, train.label_smoothing: 1.0e-01}
+  - {id: s2_035_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 0.0e+00, model.dropout: 2.0e-01, train.augment: flip_date, train.label_smoothing: 1.0e-01}
+  - {id: s2_036_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 1.0e-01, model.dropout: 0.0e+00, train.augment: false, train.label_smoothing: 0.0e+00}
+  - {id: s2_037_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 1.0e-01, model.dropout: 0.0e+00, train.augment: false, train.label_smoothing: 0.0e+00}
+  - {id: s2_038_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 1.0e-01, model.dropout: 0.0e+00, train.augment: false, train.label_smoothing: 1.0e-01}
+  - {id: s2_039_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 1.0e-01, model.dropout: 0.0e+00, train.augment: false, train.label_smoothing: 1.0e-01}
+  - {id: s2_040_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 1.0e-01, model.dropout: 0.0e+00, train.augment: flip, train.label_smoothing: 0.0e+00}
+  - {id: s2_041_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 1.0e-01, model.dropout: 0.0e+00, train.augment: flip, train.label_smoothing: 0.0e+00}
+  - {id: s2_042_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 1.0e-01, model.dropout: 0.0e+00, train.augment: flip, train.label_smoothing: 1.0e-01}
+  - {id: s2_043_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 1.0e-01, model.dropout: 0.0e+00, train.augment: flip, train.label_smoothing: 1.0e-01}
+  - {id: s2_044_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 1.0e-01, model.dropout: 0.0e+00, train.augment: flip_date, train.label_smoothing: 0.0e+00}
+  - {id: s2_045_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 1.0e-01, model.dropout: 0.0e+00, train.augment: flip_date, train.label_smoothing: 0.0e+00}
+  - {id: s2_046_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 1.0e-01, model.dropout: 0.0e+00, train.augment: flip_date, train.label_smoothing: 1.0e-01}
+  - {id: s2_047_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 1.0e-01, model.dropout: 0.0e+00, train.augment: flip_date, train.label_smoothing: 1.0e-01}
+  - {id: s2_048_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 1.0e-01, model.dropout: 1.0e-01, train.augment: false, train.label_smoothing: 0.0e+00}
+  - {id: s2_049_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 1.0e-01, model.dropout: 1.0e-01, train.augment: false, train.label_smoothing: 0.0e+00}
+  - {id: s2_050_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 1.0e-01, model.dropout: 1.0e-01, train.augment: false, train.label_smoothing: 1.0e-01}
+  - {id: s2_051_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 1.0e-01, model.dropout: 1.0e-01, train.augment: false, train.label_smoothing: 1.0e-01}
+  - {id: s2_052_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 1.0e-01, model.dropout: 1.0e-01, train.augment: flip, train.label_smoothing: 0.0e+00}
+  - {id: s2_053_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 1.0e-01, model.dropout: 1.0e-01, train.augment: flip, train.label_smoothing: 0.0e+00}
+  - {id: s2_054_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 1.0e-01, model.dropout: 1.0e-01, train.augment: flip, train.label_smoothing: 1.0e-01}
+  - {id: s2_055_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 1.0e-01, model.dropout: 1.0e-01, train.augment: flip, train.label_smoothing: 1.0e-01}
+  - {id: s2_056_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 1.0e-01, model.dropout: 1.0e-01, train.augment: flip_date, train.label_smoothing: 0.0e+00}
+  - {id: s2_057_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 1.0e-01, model.dropout: 1.0e-01, train.augment: flip_date, train.label_smoothing: 0.0e+00}
+  - {id: s2_058_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 1.0e-01, model.dropout: 1.0e-01, train.augment: flip_date, train.label_smoothing: 1.0e-01}
+  - {id: s2_059_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 1.0e-01, model.dropout: 1.0e-01, train.augment: flip_date, train.label_smoothing: 1.0e-01}
+  - {id: s2_060_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 1.0e-01, model.dropout: 2.0e-01, train.augment: false, train.label_smoothing: 0.0e+00}
+  - {id: s2_061_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 1.0e-01, model.dropout: 2.0e-01, train.augment: false, train.label_smoothing: 0.0e+00}
+  - {id: s2_062_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 1.0e-01, model.dropout: 2.0e-01, train.augment: false, train.label_smoothing: 1.0e-01}
+  - {id: s2_063_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 1.0e-01, model.dropout: 2.0e-01, train.augment: false, train.label_smoothing: 1.0e-01}
+  - {id: s2_064_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 1.0e-01, model.dropout: 2.0e-01, train.augment: flip, train.label_smoothing: 0.0e+00}
+  - {id: s2_065_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 1.0e-01, model.dropout: 2.0e-01, train.augment: flip, train.label_smoothing: 0.0e+00}
+  - {id: s2_066_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 1.0e-01, model.dropout: 2.0e-01, train.augment: flip, train.label_smoothing: 1.0e-01}
+  - {id: s2_067_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 1.0e-01, model.dropout: 2.0e-01, train.augment: flip, train.label_smoothing: 1.0e-01}
+  - {id: s2_068_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 1.0e-01, model.dropout: 2.0e-01, train.augment: flip_date, train.label_smoothing: 0.0e+00}
+  - {id: s2_069_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 1.0e-01, model.dropout: 2.0e-01, train.augment: flip_date, train.label_smoothing: 0.0e+00}
+  - {id: s2_070_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 1.0e-01, model.dropout: 2.0e-01, train.augment: flip_date, train.label_smoothing: 1.0e-01}
+  - {id: s2_071_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 1.0e-01, model.dropout: 2.0e-01, train.augment: flip_date, train.label_smoothing: 1.0e-01}
+  - {id: s2_072_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 2.0e-01, model.dropout: 0.0e+00, train.augment: false, train.label_smoothing: 0.0e+00}
+  - {id: s2_073_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 2.0e-01, model.dropout: 0.0e+00, train.augment: false, train.label_smoothing: 0.0e+00}
+  - {id: s2_074_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 2.0e-01, model.dropout: 0.0e+00, train.augment: false, train.label_smoothing: 1.0e-01}
+  - {id: s2_075_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 2.0e-01, model.dropout: 0.0e+00, train.augment: false, train.label_smoothing: 1.0e-01}
+  - {id: s2_076_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 2.0e-01, model.dropout: 0.0e+00, train.augment: flip, train.label_smoothing: 0.0e+00}
+  - {id: s2_077_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 2.0e-01, model.dropout: 0.0e+00, train.augment: flip, train.label_smoothing: 0.0e+00}
+  - {id: s2_078_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 2.0e-01, model.dropout: 0.0e+00, train.augment: flip, train.label_smoothing: 1.0e-01}
+  - {id: s2_079_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 2.0e-01, model.dropout: 0.0e+00, train.augment: flip, train.label_smoothing: 1.0e-01}
+  - {id: s2_080_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 2.0e-01, model.dropout: 0.0e+00, train.augment: flip_date, train.label_smoothing: 0.0e+00}
+  - {id: s2_081_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 2.0e-01, model.dropout: 0.0e+00, train.augment: flip_date, train.label_smoothing: 0.0e+00}
+  - {id: s2_082_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 2.0e-01, model.dropout: 0.0e+00, train.augment: flip_date, train.label_smoothing: 1.0e-01}
+  - {id: s2_083_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 2.0e-01, model.dropout: 0.0e+00, train.augment: flip_date, train.label_smoothing: 1.0e-01}
+  - {id: s2_084_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 2.0e-01, model.dropout: 1.0e-01, train.augment: false, train.label_smoothing: 0.0e+00}
+  - {id: s2_085_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 2.0e-01, model.dropout: 1.0e-01, train.augment: false, train.label_smoothing: 0.0e+00}
+  - {id: s2_086_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 2.0e-01, model.dropout: 1.0e-01, train.augment: false, train.label_smoothing: 1.0e-01}
+  - {id: s2_087_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 2.0e-01, model.dropout: 1.0e-01, train.augment: false, train.label_smoothing: 1.0e-01}
+  - {id: s2_088_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 2.0e-01, model.dropout: 1.0e-01, train.augment: flip, train.label_smoothing: 0.0e+00}
+  - {id: s2_089_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 2.0e-01, model.dropout: 1.0e-01, train.augment: flip, train.label_smoothing: 0.0e+00}
+  - {id: s2_090_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 2.0e-01, model.dropout: 1.0e-01, train.augment: flip, train.label_smoothing: 1.0e-01}
+  - {id: s2_091_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 2.0e-01, model.dropout: 1.0e-01, train.augment: flip, train.label_smoothing: 1.0e-01}
+  - {id: s2_092_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 2.0e-01, model.dropout: 1.0e-01, train.augment: flip_date, train.label_smoothing: 0.0e+00}
+  - {id: s2_093_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 2.0e-01, model.dropout: 1.0e-01, train.augment: flip_date, train.label_smoothing: 0.0e+00}
+  - {id: s2_094_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 2.0e-01, model.dropout: 1.0e-01, train.augment: flip_date, train.label_smoothing: 1.0e-01}
+  - {id: s2_095_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 2.0e-01, model.dropout: 1.0e-01, train.augment: flip_date, train.label_smoothing: 1.0e-01}
+  - {id: s2_096_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 2.0e-01, model.dropout: 2.0e-01, train.augment: false, train.label_smoothing: 0.0e+00}
+  - {id: s2_097_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 2.0e-01, model.dropout: 2.0e-01, train.augment: false, train.label_smoothing: 0.0e+00}
+  - {id: s2_098_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 2.0e-01, model.dropout: 2.0e-01, train.augment: false, train.label_smoothing: 1.0e-01}
+  - {id: s2_099_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 2.0e-01, model.dropout: 2.0e-01, train.augment: false, train.label_smoothing: 1.0e-01}
+  - {id: s2_100_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 2.0e-01, model.dropout: 2.0e-01, train.augment: flip, train.label_smoothing: 0.0e+00}
+  - {id: s2_101_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 2.0e-01, model.dropout: 2.0e-01, train.augment: flip, train.label_smoothing: 0.0e+00}
+  - {id: s2_102_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 2.0e-01, model.dropout: 2.0e-01, train.augment: flip, train.label_smoothing: 1.0e-01}
+  - {id: s2_103_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 2.0e-01, model.dropout: 2.0e-01, train.augment: flip, train.label_smoothing: 1.0e-01}
+  - {id: s2_104_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 2.0e-01, model.dropout: 2.0e-01, train.augment: flip_date, train.label_smoothing: 0.0e+00}
+  - {id: s2_105_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 2.0e-01, model.dropout: 2.0e-01, train.augment: flip_date, train.label_smoothing: 0.0e+00}
+  - {id: s2_106_sgd, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.drop_path: 2.0e-01, model.dropout: 2.0e-01, train.augment: flip_date, train.label_smoothing: 1.0e-01}
+  - {id: s2_107_adamw, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.drop_path: 2.0e-01, model.dropout: 2.0e-01, train.augment: flip_date, train.label_smoothing: 1.0e-01}

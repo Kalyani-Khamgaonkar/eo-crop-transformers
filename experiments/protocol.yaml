@@ -46,7 +46,8 @@ train:
   momentum: 0.9                # sgd only
   grad_clip: 0.0               # 0 = off
   loss: ce                     # ce | weighted_ce
-  augment: false               # flips + 90 degree rotations
+  label_smoothing: 0.0          # 0 = off
+  augment: false               # false | flip | flip_date
   amp: true                    # bf16 mixed precision on GPU
   seed: 42
 
@@ -77,6 +78,7 @@ tunable:
   - train.momentum
   - train.grad_clip
   - train.loss
+  - train.label_smoothing
   - train.augment
   - train.amp
   - train.seed

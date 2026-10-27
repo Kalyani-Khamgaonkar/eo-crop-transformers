@@ -23,10 +23,11 @@ def class_weights_from_counts(counts: np.ndarray, power: float = 0.5) -> torch.T
 def build_loss(cfg: dict, class_counts: np.ndarray | None = None) -> nn.Module:
     ignore = cfg["data"]["ignore_index"]
     kind = cfg["train"]["loss"]
+    ls = float(cfg["train"].get("label_smoothing", 0.0))
     if kind == "ce":
-        return nn.CrossEntropyLoss(ignore_index=ignore)
+        return nn.CrossEntropyLoss(ignore_index=ignore, label_smoothing=ls)
     if kind == "weighted_ce":
         if class_counts is None:
             raise ValueError("weighted_ce needs class counts from the training set")
-        return nn.CrossEntropyLoss(weight=class_weights_from_counts(class_counts), ignore_index=ignore)
+        return nn.CrossEntropyLoss(weight=class_weights_from_counts(class_counts), ignore_index=ignore, label_smoothing=ls)
     raise ValueError(f"Unknown loss '{kind}'")

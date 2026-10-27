@@ -16,6 +16,7 @@ CONFIG=$1; shift
 P=${P:-4}
 N=$(python -m core.cli num_runs "$CONFIG" | tail -n 1)
 CL="claims/$(basename "$CONFIG" .yaml)"; mkdir -p "$CL"
+if [ "${CLEAN:-0}" = 1 ]; then for d in "$CL"/*; do [ -d "$d" ] || continue; i=$(basename "$d"); grep -q "\[done\]" "logs/run_$(basename "$CONFIG" .yaml)_${i}.out" 2>/dev/null || rmdir "$d"; done; fi
 for ((p=0; p<P; p++)); do
   (
     for ((i=0; i<N; i++)); do

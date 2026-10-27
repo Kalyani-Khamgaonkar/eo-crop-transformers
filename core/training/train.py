@@ -51,7 +51,7 @@ def build_loaders(cfg: dict, synthetic: bool = False, overfit: int = 0):
             if not p.exists():
                 raise FileNotFoundError(f"{s} list {p} missing. See README: make_splits / make_subset")
         common = dict(max_dates=d["max_dates"], ignore_index=d["ignore_index"], norm_stats=stats)
-        train_ds = PASTIS24(root, lists["train"], train=True, augment=t["augment"] and not overfit, **common)
+        train_ds = PASTIS24(root, lists["train"], train=True, augment=(False if overfit else t["augment"]), **common)
         val_ds = PASTIS24(root, lists["val"], train=False, **common)
         if overfit:  # sanity check: same few files for training and validation
             train_ds.files = train_ds.files[:overfit]

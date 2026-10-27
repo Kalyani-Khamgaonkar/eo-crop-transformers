@@ -74,7 +74,10 @@ class PASTIS24(Dataset):
         self.max_dates = max_dates
         self.ignore_index = ignore_index
         self.train = train
-        self.augment = augment and train
+        mode = ("flip" if augment else "off") if isinstance(augment, bool) or augment is None else str(augment)
+        assert mode in ("off", "flip", "flip_date"), f"unknown augment {augment!r}"
+        self.augment = train and mode in ("flip", "flip_date")  # flips + 90 deg rotations
+        self.date_dropout = 0.15 if (train and mode == "flip_date") else 0.0  # drop dates, keep >= 1
         self.mean = self.std = None
         if norm_stats is not None:
             stats = json.loads(Path(norm_stats).read_text())
@@ -100,6 +103,11 @@ class PASTIS24(Dataset):
 
         keep = self._select_dates(img.shape[0])
         img, doy = img[keep], doy[keep]
+        if self.date_dropout > 0 and img.shape[0] > 1:
+            kd = np.random.rand(img.shape[0]) >= self.date_dropout
+            if not kd.any():
+                kd[np.random.randint(img.shape[0])] = True
+            img, doy = img[kd], doy[kd]
         if self.mean is not None:
             img = (img - self.mean) / self.std
         if self.augment:

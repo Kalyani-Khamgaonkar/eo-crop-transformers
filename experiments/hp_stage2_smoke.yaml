@@ -1,0 +1,25 @@
+# Stage 2 smoke test: 2 epochs, checks label smoothing and the 3 augmentation modes
+name: hp_stage2_smoke
+
+base:
+  model.tokenizer: patch2d
+  model.patch_size: 4
+  model.tubelet_t: 1
+  model.attention: joint
+  model.spatial_pe: learnable
+  model.temporal_enc: doy_sin
+  model.dropout: 0.1
+  model.drop_path: 0.1
+  train.optimizer: adamw
+  train.lr: 1.0e-03
+  train.weight_decay: 5.0e-02
+  train.loss: weighted_ce
+  train.epochs: 2
+  train.warmup_epochs: 1
+  data.subset_fraction: 0.05
+  data.num_workers: 6
+
+runs:
+  - {id: smoke_off, train.augment: false, train.label_smoothing: 0.0}
+  - {id: smoke_flip, train.augment: flip, train.label_smoothing: 0.1}
+  - {id: smoke_flipdate, train.augment: flip_date, train.label_smoothing: 0.1}

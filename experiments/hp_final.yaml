@@ -1,0 +1,30 @@
+# Final night: fold I full data (Stage 2 winner) + Stage 3 schedule + Stage 4 seeds
+name: hp_final
+
+base:
+  model.tokenizer: patch2d
+  model.patch_size: 4
+  model.tubelet_t: 1
+  model.attention: joint
+  model.spatial_pe: learnable
+  model.temporal_enc: doy_sin
+  train.loss: weighted_ce
+  data.subset_fraction: 0.05
+  data.num_workers: 6
+
+runs:
+  - {id: fold1_full, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.dropout: 1.0e-01, model.drop_path: 2.0e-01, train.augment: flip_date, train.label_smoothing: 1.0e-01, data.subset_fraction: 1.0e+00, data.fold_run: I}
+  - {id: s3_cosine_wu0, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.dropout: 1.0e-01, model.drop_path: 2.0e-01, train.augment: flip_date, train.label_smoothing: 1.0e-01, train.scheduler: cosine, train.warmup_epochs: 0}
+  - {id: s3_cosine_wu5, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.dropout: 1.0e-01, model.drop_path: 2.0e-01, train.augment: flip_date, train.label_smoothing: 1.0e-01, train.scheduler: cosine, train.warmup_epochs: 5}
+  - {id: s3_step_wu0, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.dropout: 1.0e-01, model.drop_path: 2.0e-01, train.augment: flip_date, train.label_smoothing: 1.0e-01, train.scheduler: step, train.warmup_epochs: 0}
+  - {id: s3_step_wu5, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.dropout: 1.0e-01, model.drop_path: 2.0e-01, train.augment: flip_date, train.label_smoothing: 1.0e-01, train.scheduler: step, train.warmup_epochs: 5}
+  - {id: s3_step_wu10, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.dropout: 1.0e-01, model.drop_path: 2.0e-01, train.augment: flip_date, train.label_smoothing: 1.0e-01, train.scheduler: step, train.warmup_epochs: 10}
+  - {id: s3_constant_wu0, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.dropout: 1.0e-01, model.drop_path: 2.0e-01, train.augment: flip_date, train.label_smoothing: 1.0e-01, train.scheduler: constant, train.warmup_epochs: 0}
+  - {id: s3_constant_wu5, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.dropout: 1.0e-01, model.drop_path: 2.0e-01, train.augment: flip_date, train.label_smoothing: 1.0e-01, train.scheduler: constant, train.warmup_epochs: 5}
+  - {id: s3_constant_wu10, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.dropout: 1.0e-01, model.drop_path: 2.0e-01, train.augment: flip_date, train.label_smoothing: 1.0e-01, train.scheduler: constant, train.warmup_epochs: 10}
+  - {id: s4_top1_seed1, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.dropout: 1.0e-01, model.drop_path: 2.0e-01, train.augment: flip_date, train.label_smoothing: 1.0e-01, train.seed: 1}
+  - {id: s4_top1_seed2, train.optimizer: adamw, train.lr: 1.0e-02, train.weight_decay: 1.0e-01, model.dropout: 1.0e-01, model.drop_path: 2.0e-01, train.augment: flip_date, train.label_smoothing: 1.0e-01, train.seed: 2}
+  - {id: s4_top2_seed1, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.dropout: 1.0e-01, model.drop_path: 1.0e-01, train.augment: flip_date, train.label_smoothing: 0.0e+00, train.seed: 1}
+  - {id: s4_top2_seed2, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.dropout: 1.0e-01, model.drop_path: 1.0e-01, train.augment: flip_date, train.label_smoothing: 0.0e+00, train.seed: 2}
+  - {id: s4_top3_seed1, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.dropout: 0.0e+00, model.drop_path: 1.0e-01, train.augment: flip_date, train.label_smoothing: 0.0e+00, train.seed: 1}
+  - {id: s4_top3_seed2, train.optimizer: sgd, train.lr: 1.0e-01, train.weight_decay: 5.0e-04, model.dropout: 0.0e+00, model.drop_path: 1.0e-01, train.augment: flip_date, train.label_smoothing: 0.0e+00, train.seed: 2}

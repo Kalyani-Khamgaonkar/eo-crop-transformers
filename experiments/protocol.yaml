@@ -41,6 +41,7 @@ train:
   lr: 1.0e-3
   min_lr: 5.0e-6
   warmup_epochs: 10
+  scheduler: cosine            # cosine | step | constant
   weight_decay: 0.0
   betas: [0.9, 0.999]
   momentum: 0.9                # sgd only
@@ -73,6 +74,7 @@ tunable:
   - train.lr
   - train.min_lr
   - train.warmup_epochs
+  - train.scheduler
   - train.weight_decay
   - train.betas
   - train.momentum

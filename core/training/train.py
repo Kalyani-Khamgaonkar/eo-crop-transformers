@@ -102,6 +102,13 @@ def build_scheduler(opt, cfg: dict, steps_per_epoch: int):
     def factor(step: int) -> float:
         if step < warm:
             return (step + 1) / warm
+        kind = t.get("scheduler", "cosine")  # cosine | step | constant, all after the same warmup
+        if kind == "constant":
+            return 1.0
+        if kind == "step":  # LR x 0.1 at 50% and x 0.01 at 75% of the epochs
+            e = step / steps_per_epoch
+            return 1.0 if e < 0.5 * t["epochs"] else (0.1 if e < 0.75 * t["epochs"] else 0.01)
+        assert kind == "cosine", f"unknown scheduler {kind!r}"
         progress = min(1.0, (step - warm) / max(1, total - warm))
         return floor + (1 - floor) * 0.5 * (1 + math.cos(math.pi * progress))
 

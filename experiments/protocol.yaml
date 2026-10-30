@@ -25,12 +25,14 @@ model:
   param_budget: 1.7e6          # target trainable parameters
   param_tolerance: 0.10        # +/- 10 percent, run stops if outside
   # design axes (the things under study)
-  tokenizer: patch2d           # patch2d | tubelet | cuboid
+  tokenizer: patch2d           # patch2d | tubelet | cuboid | groups
   patch_size: 2
   tubelet_t: 1                 # dates per token (patch2d forces 1)
   attention: temporal_first    # temporal_first | joint
   spatial_pe: learnable        # learnable | sinusoidal | relative | none
   temporal_enc: doy_sin        # doy_sin | doy_learned | index_learned
+  pe_mode: add                 # add | concat | conv   (how position enters the token)
+  group_enc: learned           # learned | sin         (spectral groups only)
   dropout: 0.0
   drop_path: 0.0
 
@@ -67,6 +69,8 @@ tunable:
   - model.attention
   - model.spatial_pe
   - model.temporal_enc
+  - model.pe_mode
+  - model.group_enc
   - model.dropout
   - model.drop_path
   - train.epochs

@@ -1,0 +1,26 @@
+# 9-config plan: C1 (2D + learnable date lookup) and C4 (tubelet 2 + learnable date lookup); 5%, fold I, final hyperparameters
+name: nine_c1_c4
+
+base:
+  model.attention: joint
+  model.patch_size: 4
+  model.spatial_pe: learnable
+  model.temporal_enc: doy_learned
+  model.dropout: 0.1
+  model.drop_path: 0.1
+  train.optimizer: sgd
+  train.lr: 1.0e-01
+  train.weight_decay: 5.0e-04
+  train.augment: flip_date
+  train.label_smoothing: 0.0
+  train.loss: weighted_ce
+  data.subset_fraction: 0.05
+  data.num_workers: 6
+
+runs:
+  - {id: C1_2d_datelookup_s42, model.tokenizer: patch2d, model.tubelet_t: 1, train.seed: 42}
+  - {id: C4_tube2_datelookup_s42, model.tokenizer: tubelet, model.tubelet_t: 2, train.seed: 42}
+  - {id: C1_2d_datelookup_s1, model.tokenizer: patch2d, model.tubelet_t: 1, train.seed: 1}
+  - {id: C4_tube2_datelookup_s1, model.tokenizer: tubelet, model.tubelet_t: 2, train.seed: 1}
+  - {id: C1_2d_datelookup_s2, model.tokenizer: patch2d, model.tubelet_t: 1, train.seed: 2}
+  - {id: C4_tube2_datelookup_s2, model.tokenizer: tubelet, model.tubelet_t: 2, train.seed: 2}

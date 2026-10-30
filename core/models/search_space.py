@@ -27,6 +27,7 @@ CANDIDATES = {
 
 # Joint attention cost grows with (tokens)^2; above this the run is too slow / too big.
 JOINT_TOKEN_BUDGET = 4096
+JOINT_TOKEN_BUDGET_GROUPS = 6480  # spectral groups: 3 tokens per patch and date (option A, agreed 30 Oct)
 
 
 def check(cfg: dict, check_params: bool = True) -> list[str]:
@@ -40,7 +41,7 @@ def check(cfg: dict, check_params: bool = True) -> list[str]:
         reasons.append("patch2d needs tubelet_t = 1")
     if m["tokenizer"] != "patch2d":
         if pt < 2:
-            reasons.append(f"{m['tokenizer']} needs tubelet_t >= 2")
+            reasons.append(f"{m['tokenizer']} needs tubelet_t >= 2") if m["tokenizer"] != "groups" else None
         if d["max_dates"] % pt:
             reasons.append(f"max_dates {d['max_dates']} not divisible by tubelet_t {pt}")
         if d["max_dates"] // max(pt, 1) < 4:
@@ -48,7 +49,7 @@ def check(cfg: dict, check_params: bool = True) -> list[str]:
     if m["spatial_pe"] == "sinusoidal" and m["dim"] % 4:
         reasons.append("sinusoidal 2D PE needs dim divisible by 4")
     if m["attention"] == "joint" and tokens_per_sample(cfg) > JOINT_TOKEN_BUDGET:
-        reasons.append(f"joint attention over {tokens_per_sample(cfg)} tokens > budget {JOINT_TOKEN_BUDGET}")
+        reasons.append(f"joint attention over {tokens_per_sample(cfg)} tokens > budget {JOINT_TOKEN_BUDGET_GROUPS if cfg['model']['tokenizer'] == 'groups' else JOINT_TOKEN_BUDGET}") if tokens_per_sample(cfg) > (JOINT_TOKEN_BUDGET_GROUPS if cfg["model"]["tokenizer"] == "groups" else JOINT_TOKEN_BUDGET) else None
     if not reasons and check_params:
         # Large blocks make the patch embedding and pixel head big (C*pt*p*p*D and D*K*p*p),
         # which can push the model outside the shared parameter budget.

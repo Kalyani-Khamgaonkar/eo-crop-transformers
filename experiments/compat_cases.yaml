@@ -1,0 +1,30 @@
+# Compatibility cases 1 to 4 (5%, fold I, 3 seeds, SGD recipe)
+name: compat_cases
+
+base:
+  model.attention: joint
+  model.spatial_pe: learnable
+  train.loss: weighted_ce
+  data.subset_fraction: 5.0e-02
+  data.num_workers: 6
+  train.optimizer: sgd
+  train.lr: 1.0e-01
+  train.weight_decay: 5.0e-04
+  model.dropout: 1.0e-01
+  model.drop_path: 1.0e-01
+  train.augment: flip_date
+  train.label_smoothing: 0.0e+00
+
+runs:
+  - {id: case1_2d_sinxy_doy_s42, model.tokenizer: patch2d, model.patch_size: 4, model.tubelet_t: 1, model.spatial_pe: sinusoidal, model.temporal_enc: doy_sin, train.seed: 42}
+  - {id: case2_2d_learnxy_index_s42, model.tokenizer: patch2d, model.patch_size: 4, model.tubelet_t: 1, model.temporal_enc: index_learned, train.seed: 42}
+  - {id: case3_tube2_index_s42, model.tokenizer: tubelet, model.patch_size: 4, model.tubelet_t: 2, model.temporal_enc: index_learned, train.seed: 42}
+  - {id: case4_cuboid4_doy_s42, model.tokenizer: cuboid, model.patch_size: 4, model.tubelet_t: 4, model.temporal_enc: doy_sin, train.seed: 42}
+  - {id: case1_2d_sinxy_doy_s1, model.tokenizer: patch2d, model.patch_size: 4, model.tubelet_t: 1, model.spatial_pe: sinusoidal, model.temporal_enc: doy_sin, train.seed: 1}
+  - {id: case2_2d_learnxy_index_s1, model.tokenizer: patch2d, model.patch_size: 4, model.tubelet_t: 1, model.temporal_enc: index_learned, train.seed: 1}
+  - {id: case3_tube2_index_s1, model.tokenizer: tubelet, model.patch_size: 4, model.tubelet_t: 2, model.temporal_enc: index_learned, train.seed: 1}
+  - {id: case4_cuboid4_doy_s1, model.tokenizer: cuboid, model.patch_size: 4, model.tubelet_t: 4, model.temporal_enc: doy_sin, train.seed: 1}
+  - {id: case1_2d_sinxy_doy_s2, model.tokenizer: patch2d, model.patch_size: 4, model.tubelet_t: 1, model.spatial_pe: sinusoidal, model.temporal_enc: doy_sin, train.seed: 2}
+  - {id: case2_2d_learnxy_index_s2, model.tokenizer: patch2d, model.patch_size: 4, model.tubelet_t: 1, model.temporal_enc: index_learned, train.seed: 2}
+  - {id: case3_tube2_index_s2, model.tokenizer: tubelet, model.patch_size: 4, model.tubelet_t: 2, model.temporal_enc: index_learned, train.seed: 2}
+  - {id: case4_cuboid4_doy_s2, model.tokenizer: cuboid, model.patch_size: 4, model.tubelet_t: 4, model.temporal_enc: doy_sin, train.seed: 2}

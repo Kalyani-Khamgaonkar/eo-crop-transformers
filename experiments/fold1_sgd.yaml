@@ -1,0 +1,24 @@
+# Fold I, full data, recipe = Stage 4 best mean over seeds (SGD)
+name: fold1_sgd
+
+base:
+  model.tokenizer: patch2d
+  model.patch_size: 4
+  model.tubelet_t: 1
+  model.attention: joint
+  model.spatial_pe: learnable
+  model.temporal_enc: doy_sin
+  model.dropout: 0.1
+  model.drop_path: 0.1
+  train.optimizer: sgd
+  train.lr: 1.0e-01
+  train.weight_decay: 5.0e-04
+  train.augment: flip_date
+  train.label_smoothing: 0.0
+  train.loss: weighted_ce
+  data.subset_fraction: 1.0
+  data.fold_run: I
+  data.num_workers: 6
+
+runs:
+  - {id: fold1_sgd}

@@ -1,0 +1,39 @@
+# 9-config plan: C2, C3, C5 to C9 (5%, fold I, final hyperparameters, 3 seeds; cheap configs first)
+name: nine_rest
+
+base:
+  model.attention: joint
+  model.patch_size: 4
+  model.dropout: 1.0e-01
+  model.drop_path: 1.0e-01
+  train.optimizer: sgd
+  train.lr: 1.0e-01
+  train.weight_decay: 5.0e-04
+  train.augment: flip_date
+  train.label_smoothing: 0.0e+00
+  train.loss: weighted_ce
+  data.subset_fraction: 5.0e-02
+  data.num_workers: 6
+
+runs:
+  - {id: C5_tube2_conv_s42, model.tokenizer: tubelet, model.tubelet_t: 2, model.pe_mode: conv, model.spatial_pe: none, model.temporal_enc: doy_sin, train.seed: 42}
+  - {id: C6_tube2_concat_s42, model.tokenizer: tubelet, model.tubelet_t: 2, model.pe_mode: concat, model.spatial_pe: none, model.temporal_enc: doy_sin, train.seed: 42}
+  - {id: C2_2d_conv_s42, model.tokenizer: patch2d, model.tubelet_t: 1, model.pe_mode: conv, model.spatial_pe: none, model.temporal_enc: doy_sin, train.seed: 42}
+  - {id: C3_2d_concat_s42, model.tokenizer: patch2d, model.tubelet_t: 1, model.pe_mode: concat, model.spatial_pe: none, model.temporal_enc: doy_sin, train.seed: 42}
+  - {id: C7_groups_datelookup_s42, model.tokenizer: groups, model.tubelet_t: 1, model.pe_mode: add, model.spatial_pe: learnable, model.temporal_enc: doy_learned, model.group_enc: learned, train.seed: 42}
+  - {id: C8_groups_conv_s42, model.tokenizer: groups, model.tubelet_t: 1, model.pe_mode: conv, model.spatial_pe: none, model.temporal_enc: doy_sin, model.group_enc: learned, train.seed: 42}
+  - {id: C9_groups_concat_s42, model.tokenizer: groups, model.tubelet_t: 1, model.pe_mode: concat, model.spatial_pe: none, model.temporal_enc: doy_sin, model.group_enc: sin, train.seed: 42}
+  - {id: C5_tube2_conv_s1, model.tokenizer: tubelet, model.tubelet_t: 2, model.pe_mode: conv, model.spatial_pe: none, model.temporal_enc: doy_sin, train.seed: 1}
+  - {id: C6_tube2_concat_s1, model.tokenizer: tubelet, model.tubelet_t: 2, model.pe_mode: concat, model.spatial_pe: none, model.temporal_enc: doy_sin, train.seed: 1}
+  - {id: C2_2d_conv_s1, model.tokenizer: patch2d, model.tubelet_t: 1, model.pe_mode: conv, model.spatial_pe: none, model.temporal_enc: doy_sin, train.seed: 1}
+  - {id: C3_2d_concat_s1, model.tokenizer: patch2d, model.tubelet_t: 1, model.pe_mode: concat, model.spatial_pe: none, model.temporal_enc: doy_sin, train.seed: 1}
+  - {id: C7_groups_datelookup_s1, model.tokenizer: groups, model.tubelet_t: 1, model.pe_mode: add, model.spatial_pe: learnable, model.temporal_enc: doy_learned, model.group_enc: learned, train.seed: 1}
+  - {id: C8_groups_conv_s1, model.tokenizer: groups, model.tubelet_t: 1, model.pe_mode: conv, model.spatial_pe: none, model.temporal_enc: doy_sin, model.group_enc: learned, train.seed: 1}
+  - {id: C9_groups_concat_s1, model.tokenizer: groups, model.tubelet_t: 1, model.pe_mode: concat, model.spatial_pe: none, model.temporal_enc: doy_sin, model.group_enc: sin, train.seed: 1}
+  - {id: C5_tube2_conv_s2, model.tokenizer: tubelet, model.tubelet_t: 2, model.pe_mode: conv, model.spatial_pe: none, model.temporal_enc: doy_sin, train.seed: 2}
+  - {id: C6_tube2_concat_s2, model.tokenizer: tubelet, model.tubelet_t: 2, model.pe_mode: concat, model.spatial_pe: none, model.temporal_enc: doy_sin, train.seed: 2}
+  - {id: C2_2d_conv_s2, model.tokenizer: patch2d, model.tubelet_t: 1, model.pe_mode: conv, model.spatial_pe: none, model.temporal_enc: doy_sin, train.seed: 2}
+  - {id: C3_2d_concat_s2, model.tokenizer: patch2d, model.tubelet_t: 1, model.pe_mode: concat, model.spatial_pe: none, model.temporal_enc: doy_sin, train.seed: 2}
+  - {id: C7_groups_datelookup_s2, model.tokenizer: groups, model.tubelet_t: 1, model.pe_mode: add, model.spatial_pe: learnable, model.temporal_enc: doy_learned, model.group_enc: learned, train.seed: 2}
+  - {id: C8_groups_conv_s2, model.tokenizer: groups, model.tubelet_t: 1, model.pe_mode: conv, model.spatial_pe: none, model.temporal_enc: doy_sin, model.group_enc: learned, train.seed: 2}
+  - {id: C9_groups_concat_s2, model.tokenizer: groups, model.tubelet_t: 1, model.pe_mode: concat, model.spatial_pe: none, model.temporal_enc: doy_sin, model.group_enc: sin, train.seed: 2}

@@ -165,7 +165,7 @@ def evaluate(model, loader, loss_fn, device, cfg) -> dict:
 
 # ---------------------------------------------------------------- main entry
 
-def run_training(cfg: dict, synthetic: bool = False, strict_budget: bool = True, overfit: int = 0) -> dict:
+def run_training(cfg: dict, synthetic: bool = False, strict_budget: bool = False, overfit: int = 0) -> dict:
     paths = get_paths()
     run_dir = paths.checkpoints / cfg["run"]["name"]
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -175,8 +175,10 @@ def run_training(cfg: dict, synthetic: bool = False, strict_budget: bool = True,
     model = build_model(cfg).to(device)
     n_params, ok, msg = check_param_budget(model, cfg)
     print(f"[model] {msg}, {tokens_per_sample(cfg)} tokens/sample")
-    if not ok and strict_budget:
-        raise ValueError(f"Parameter budget violated: {msg}. Use --no-strict-budget only for debugging.")
+    if not ok:  # soft criterion (agreed 5 Nov): report, do not stop, unless --strict-budget
+        if strict_budget:
+            raise ValueError(f"Parameter budget violated: {msg} (--strict-budget is on).")
+        print(f"[warn] parameter budget: {msg}; continuing (soft criterion)")
 
     train_dl, val_dl, counts = build_loaders(cfg, synthetic, overfit)
     loss_fn = build_loss(cfg, counts).to(device)

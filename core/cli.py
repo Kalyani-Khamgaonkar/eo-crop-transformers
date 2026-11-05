@@ -206,16 +206,17 @@ def num_runs(experiment_config):
 @click.option("--run-index", default=0, type=int, help="Which entry in `runs` (Slurm array index)")
 @click.option("--set", "sets", multiple=True, help="Extra override, e.g. --set train.lr=3e-4")
 @click.option("--synthetic", is_flag=True, help="Fake data: smoke test without PASTIS")
-@click.option("--no-strict-budget", is_flag=True, help="Do not stop when params are outside the budget")
+@click.option("--no-strict-budget", is_flag=True, help="Kept for old scripts; the budget no longer stops a run")
+@click.option("--strict-budget", is_flag=True, help="Stop when params are outside the budget (old behaviour)")
 @click.option("--dry-run", is_flag=True, help="Print the resolved config and parameter count, then stop")
 @click.option("--overfit", default=0, type=int, help="Sanity check: train AND validate on the first N training files")
-def train(preset, experiment_config, run_index, sets, synthetic, no_strict_budget, dry_run, overfit):
+def train(preset, experiment_config, run_index, sets, synthetic, no_strict_budget, strict_budget, dry_run, overfit):
     """Train one configuration."""
     import yaml
 
     from core.models.builder import build_model, check_param_budget, tokens_per_sample
     from core.models.registry import preset_overrides
-    from core.models.search_space import check
+    from core.models.search_space import check, soft_warnings
     from core.training.train import run_training
 
     overrides = preset_overrides(preset) if preset else {}
@@ -230,13 +231,15 @@ def train(preset, experiment_config, run_index, sets, synthetic, no_strict_budge
     problems = check(cfg)
     if problems:
         raise click.UsageError("Invalid configuration: " + "; ".join(problems))
+    for w in soft_warnings(cfg):
+        click.echo(f"[warn] {w}")
 
     if dry_run:
         click.echo(yaml.safe_dump({k: cfg[k] for k in ("run", "data", "model", "train")}, sort_keys=False))
         _, ok, msg = check_param_budget(build_model(cfg), cfg)
         click.echo(f"{msg} {'OK' if ok else 'OUTSIDE BUDGET'}, {tokens_per_sample(cfg)} tokens/sample")
         return
-    run_training(cfg, synthetic=synthetic, strict_budget=not no_strict_budget, overfit=overfit)
+    run_training(cfg, synthetic=synthetic, strict_budget=strict_budget, overfit=overfit)
 
 
 @cli.command("evaluate_test")

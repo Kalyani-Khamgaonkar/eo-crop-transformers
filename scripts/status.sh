@@ -3,7 +3,7 @@
 cd ~/eo-crop-transformers
 echo "=== JOBS ==="; squeue -u s3295303 -o "%.8i %.10j %.2t %.10M %.20R"
 echo; echo "=== PROGRESS (done / claimed / total) ==="
-for exp in fold1_sgd compat_cases nine_c1_c4 nine_rest; do
+for exp in nine_c1_c4 nine_rest pe_screen_6nov scale_20pct; do
   [ -f experiments/$exp.yaml ] || continue
   total=$(grep -c "^  - {id" experiments/$exp.yaml)
   done=$(grep -l "\[done\]" logs/run_${exp}_[0-9]*.out 2>/dev/null | wc -l)

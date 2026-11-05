@@ -40,10 +40,14 @@ class SpectralGroupTokenizer(nn.Module):
         return torch.cat(out, dim=2), doy, mask
 
 
-def concat_sincos_pe(doy_t: torch.Tensor, gh: int, gw: int, groups: int, dim: int, group_sin: bool) -> torch.Tensor:
-    """Concatenated sin-cos position (SatMAE style). Returns (B, T', G*N, D).
+def concat_sincos_pe(doy_t: torch.Tensor, gh: int, gw: int, groups: int, dim: int, group_sin: bool,
+                     time: str = "date") -> torch.Tensor:
+    """Concatenated sin-cos position. Returns (B, T', G*N, D).
+    time = "date": real acquisition day (SatMAE); "index": frame number 0, 1, 2, ... (Prithvi, TiMo).
     Split: (t, y, x) = (D/2, D/4, D/4); with group_sin (t, y, x, g) = (D/4, D/4, D/4, D/4)."""
     b, t = doy_t.shape
+    if time == "index":
+        doy_t = torch.arange(t, device=doy_t.device).expand(b, t)
     n = gh * gw
     dt, dy = (dim // 4, dim // 4) if group_sin else (dim // 2, dim // 4)
     assert dt % 2 == 0 and dy % 2 == 0

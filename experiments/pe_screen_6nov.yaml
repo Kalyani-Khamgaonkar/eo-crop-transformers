@@ -1,0 +1,52 @@
+# 6 Nov screening: 2 patchifications x 6 encoding families, joint attention, final hyperparameters, 5%, fold I.
+# E0 none | E1 date sinusoid (baseline) | E2 learned date table (TSViT, SkySense; new 0.02 start) | E3 conv (VistaFormer)
+# E4 sin-cos of frame index, concatenated (Prithvi, TiMo) | E5 3D relative bias (AgriFM)
+# Already done elsewhere: 2D+E1 = baseline, 2D+E3 = C2, tube+E3 = C5 (nine_rest).
+# Order: tier 1 (must have), tier 2, tier 3; inside a tier seed 42 first, so every config gets 1 seed early.
+name: pe_screen_6nov
+
+base:
+  model.attention: joint
+  model.patch_size: 4
+  model.dropout: 1.0e-01
+  model.drop_path: 1.0e-01
+  train.optimizer: sgd
+  train.lr: 1.0e-01
+  train.weight_decay: 5.0e-04
+  train.augment: flip_date
+  train.label_smoothing: 0.0e+00
+  train.loss: weighted_ce
+  data.subset_fraction: 5.0e-02
+  data.num_workers: 6
+
+runs:
+  # tier 1
+  - {id: C1b_2d_E2_s42, model.tokenizer: patch2d, model.tubelet_t: 1, model.pe_mode: add, model.spatial_pe: learnable, model.temporal_enc: doy_learned, train.seed: 42}
+  - {id: C4b_tube_E2_s42, model.tokenizer: tubelet, model.tubelet_t: 2, model.pe_mode: add, model.spatial_pe: learnable, model.temporal_enc: doy_learned, train.seed: 42}
+  - {id: E1_tube_s42, model.tokenizer: tubelet, model.tubelet_t: 2, model.pe_mode: add, model.spatial_pe: learnable, model.temporal_enc: doy_sin, train.seed: 42}
+  - {id: E0_2d_s42, model.tokenizer: patch2d, model.tubelet_t: 1, model.pe_mode: add, model.spatial_pe: none, model.temporal_enc: none, train.seed: 42}
+  - {id: E0_tube_s42, model.tokenizer: tubelet, model.tubelet_t: 2, model.pe_mode: add, model.spatial_pe: none, model.temporal_enc: none, train.seed: 42}
+  - {id: C1b_2d_E2_s1, model.tokenizer: patch2d, model.tubelet_t: 1, model.pe_mode: add, model.spatial_pe: learnable, model.temporal_enc: doy_learned, train.seed: 1}
+  - {id: C4b_tube_E2_s1, model.tokenizer: tubelet, model.tubelet_t: 2, model.pe_mode: add, model.spatial_pe: learnable, model.temporal_enc: doy_learned, train.seed: 1}
+  - {id: E1_tube_s1, model.tokenizer: tubelet, model.tubelet_t: 2, model.pe_mode: add, model.spatial_pe: learnable, model.temporal_enc: doy_sin, train.seed: 1}
+  - {id: E0_2d_s1, model.tokenizer: patch2d, model.tubelet_t: 1, model.pe_mode: add, model.spatial_pe: none, model.temporal_enc: none, train.seed: 1}
+  - {id: E0_tube_s1, model.tokenizer: tubelet, model.tubelet_t: 2, model.pe_mode: add, model.spatial_pe: none, model.temporal_enc: none, train.seed: 1}
+  - {id: C1b_2d_E2_s2, model.tokenizer: patch2d, model.tubelet_t: 1, model.pe_mode: add, model.spatial_pe: learnable, model.temporal_enc: doy_learned, train.seed: 2}
+  - {id: C4b_tube_E2_s2, model.tokenizer: tubelet, model.tubelet_t: 2, model.pe_mode: add, model.spatial_pe: learnable, model.temporal_enc: doy_learned, train.seed: 2}
+  - {id: E1_tube_s2, model.tokenizer: tubelet, model.tubelet_t: 2, model.pe_mode: add, model.spatial_pe: learnable, model.temporal_enc: doy_sin, train.seed: 2}
+  - {id: E0_2d_s2, model.tokenizer: patch2d, model.tubelet_t: 1, model.pe_mode: add, model.spatial_pe: none, model.temporal_enc: none, train.seed: 2}
+  - {id: E0_tube_s2, model.tokenizer: tubelet, model.tubelet_t: 2, model.pe_mode: add, model.spatial_pe: none, model.temporal_enc: none, train.seed: 2}
+  # tier 2
+  - {id: E4_2d_s42, model.tokenizer: patch2d, model.tubelet_t: 1, model.pe_mode: concat, model.spatial_pe: none, model.temporal_enc: index_sin, train.seed: 42}
+  - {id: E4_tube_s42, model.tokenizer: tubelet, model.tubelet_t: 2, model.pe_mode: concat, model.spatial_pe: none, model.temporal_enc: index_sin, train.seed: 42}
+  - {id: E4_2d_s1, model.tokenizer: patch2d, model.tubelet_t: 1, model.pe_mode: concat, model.spatial_pe: none, model.temporal_enc: index_sin, train.seed: 1}
+  - {id: E4_tube_s1, model.tokenizer: tubelet, model.tubelet_t: 2, model.pe_mode: concat, model.spatial_pe: none, model.temporal_enc: index_sin, train.seed: 1}
+  - {id: E4_2d_s2, model.tokenizer: patch2d, model.tubelet_t: 1, model.pe_mode: concat, model.spatial_pe: none, model.temporal_enc: index_sin, train.seed: 2}
+  - {id: E4_tube_s2, model.tokenizer: tubelet, model.tubelet_t: 2, model.pe_mode: concat, model.spatial_pe: none, model.temporal_enc: index_sin, train.seed: 2}
+  # tier 3
+  - {id: E5_tube_s42, model.tokenizer: tubelet, model.tubelet_t: 2, model.pe_mode: rel3d, model.spatial_pe: none, model.temporal_enc: none, train.seed: 42}
+  - {id: E5_2d_s42, model.tokenizer: patch2d, model.tubelet_t: 1, model.pe_mode: rel3d, model.spatial_pe: none, model.temporal_enc: none, train.seed: 42}
+  - {id: E5_tube_s1, model.tokenizer: tubelet, model.tubelet_t: 2, model.pe_mode: rel3d, model.spatial_pe: none, model.temporal_enc: none, train.seed: 1}
+  - {id: E5_2d_s1, model.tokenizer: patch2d, model.tubelet_t: 1, model.pe_mode: rel3d, model.spatial_pe: none, model.temporal_enc: none, train.seed: 1}
+  - {id: E5_tube_s2, model.tokenizer: tubelet, model.tubelet_t: 2, model.pe_mode: rel3d, model.spatial_pe: none, model.temporal_enc: none, train.seed: 2}
+  - {id: E5_2d_s2, model.tokenizer: patch2d, model.tubelet_t: 1, model.pe_mode: rel3d, model.spatial_pe: none, model.temporal_enc: none, train.seed: 2}

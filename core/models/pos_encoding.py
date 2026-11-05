@@ -12,6 +12,14 @@ Temporal (when a token was observed)
     doy_learned    trained vector per acquisition day          (TSViT)
     (PASTIS spans ~15 months, so "day" = days since 2018-09-01, range 0..~460)
     index_learned  trained vector per token index, ignores real dates (plain ViT)
+    index_sin      fixed sine / cosine of the token index (frame number)  (Prithvi, TiMo)
+    none           no temporal information (ablation, "no PE" floor)
+
+Learned tables (doy_learned, index_learned) start at std 0.02, like the learnable spatial PE,
+so every learned position table starts from the same small values (nn.Embedding default is std 1).
+
+Relative 3D (pe_mode rel3d): one learned bias per head for every (dt, dy, dx) offset between
+two tokens, added to the attention scores (Video Swin / AgriFM). dt is the frame offset.
 """
 
 from __future__ import annotations
@@ -87,13 +95,37 @@ class TemporalEncoding(nn.Module):
             self.emb = nn.Embedding(MAX_DAY + 1, dim)
         elif kind == "index_learned":
             self.emb = nn.Embedding(max_tokens, dim)
-        elif kind != "doy_sin":
+        elif kind not in ("doy_sin", "index_sin", "none"):
             raise ValueError(f"Unknown temporal_enc '{kind}'")
+        if hasattr(self, "emb"):
+            nn.init.trunc_normal_(self.emb.weight, std=0.02)   # same start as the learnable spatial PE
 
     def forward(self, doy: torch.Tensor) -> torch.Tensor:
+        idx = torch.arange(doy.shape[1], device=doy.device).expand_as(doy)
         if self.kind == "doy_sin":
             return sincos_1d(doy, self.dim, max_period=1000.0)
+        if self.kind == "index_sin":
+            return sincos_1d(idx, self.dim, max_period=1000.0)
+        if self.kind == "none":
+            return torch.zeros(*doy.shape, self.dim, device=doy.device)
         if self.kind == "doy_learned":
             return self.emb(doy.clamp(0, MAX_DAY))
-        idx = torch.arange(doy.shape[1], device=doy.device).expand_as(doy)
         return self.emb(idx)
+
+
+class RelativeBias3D(nn.Module):
+    """Learned attention bias per head for every (dt, dy, dx) offset in a t x gh x gw token grid.
+    Tokens are ordered time-major, then row, then column (as in the joint encoder)."""
+
+    def __init__(self, t: int, gh: int, gw: int, heads: int):
+        super().__init__()
+        self.table = nn.Parameter(torch.zeros((2 * t - 1) * (2 * gh - 1) * (2 * gw - 1), heads))
+        nn.init.trunc_normal_(self.table, std=0.02)
+        ts, ys, xs = torch.meshgrid(torch.arange(t), torch.arange(gh), torch.arange(gw), indexing="ij")
+        c = torch.stack([ts.flatten(), ys.flatten(), xs.flatten()])   # (3, N)
+        rel = c[:, :, None] - c[:, None, :]                            # (3, N, N)
+        idx = ((rel[0] + t - 1) * (2 * gh - 1) + (rel[1] + gh - 1)) * (2 * gw - 1) + (rel[2] + gw - 1)
+        self.register_buffer("idx", idx, persistent=False)
+
+    def forward(self) -> torch.Tensor:
+        return self.table[self.idx].permute(2, 0, 1)                   # (heads, N, N)

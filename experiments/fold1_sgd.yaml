@@ -1,4 +1,4 @@
-# Fold I, full data, recipe = Stage 4 best mean over seeds (SGD)
+# Fold I, full data, final hyperparameters = Stage 4 best mean over seeds (SGD)
 name: fold1_sgd
 
 base:

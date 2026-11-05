@@ -1,4 +1,4 @@
-# Compatibility cases 1 to 4 (5%, fold I, 3 seeds, SGD recipe)
+# Compatibility cases 1 to 4 (5%, fold I, 3 seeds, final SGD hyperparameters)
 name: compat_cases
 
 base:

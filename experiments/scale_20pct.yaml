@@ -1,0 +1,22 @@
+# Optional data-scaling check: 20% subset of fold I, seed 42 (needs: make_subset --fraction 0.2).
+# Same models at 5% are in hp_final (baseline), pe_screen_6nov (C1b), nine_rest (C5).
+name: scale_20pct
+
+base:
+  model.attention: joint
+  model.patch_size: 4
+  model.dropout: 1.0e-01
+  model.drop_path: 1.0e-01
+  train.optimizer: sgd
+  train.lr: 1.0e-01
+  train.weight_decay: 5.0e-04
+  train.augment: flip_date
+  train.label_smoothing: 0.0e+00
+  train.loss: weighted_ce
+  data.subset_fraction: 2.0e-01
+  data.num_workers: 6
+
+runs:
+  - {id: baseline_2d_E1_s42, model.tokenizer: patch2d, model.tubelet_t: 1, model.pe_mode: add, model.spatial_pe: learnable, model.temporal_enc: doy_sin, train.seed: 42}
+  - {id: C1b_2d_E2_s42, model.tokenizer: patch2d, model.tubelet_t: 1, model.pe_mode: add, model.spatial_pe: learnable, model.temporal_enc: doy_learned, train.seed: 42}
+  - {id: C5_tube_E3_s42, model.tokenizer: tubelet, model.tubelet_t: 2, model.pe_mode: conv, model.spatial_pe: none, model.temporal_enc: doy_sin, train.seed: 42}

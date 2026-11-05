@@ -6,7 +6,8 @@ Design axes (config keys under `model`):
     tokenizer     patch2d | tubelet | cuboid          (SO1)
     attention     temporal_first | joint              (SO1, how time is processed)
     spatial_pe    learnable | sinusoidal | relative | none   (SO2)
-    temporal_enc  doy_sin | doy_learned | index_learned
+    temporal_enc  doy_sin | doy_learned | index_learned | index_sin | none
+    pe_mode       add | concat | conv | rel3d   (how position enters; rel3d = 3D relative bias, AgriFM)
 
 Pipeline
     tokens -> + spatial PE + temporal encoding -> encoder -> pool over time -> pixel head
@@ -26,7 +27,7 @@ import torch
 import torch.nn as nn
 
 from core.models.blocks import Encoder
-from core.models.pos_encoding import RelativeBias2D, SpatialPE, TemporalEncoding
+from core.models.pos_encoding import RelativeBias2D, RelativeBias3D, SpatialPE, TemporalEncoding
 from core.models.tokenizers import build_tokenizer
 
 
@@ -61,7 +62,7 @@ class SITSTransformer(nn.Module):
         n_tokens_t = d["max_dates"] // pt
         self.attention = m["attention"]
 
-        self.pe_mode = m.get("pe_mode", "add")                      # add | concat | conv
+        self.pe_mode = m.get("pe_mode", "add")                      # add | concat | conv | rel3d
         self.G = 3 if m["tokenizer"] == "groups" else 1
         if m["tokenizer"] == "groups":
             from core.models.pe_variants import SpectralGroupTokenizer
@@ -78,8 +79,15 @@ class SITSTransformer(nn.Module):
         if self.group_emb is not None:
             nn.init.trunc_normal_(self.group_emb, std=0.02)
         if self.pe_mode != "add":
-            assert m["spatial_pe"] == "none", "pe_mode concat/conv: set spatial_pe none"
-            assert m["temporal_enc"] == "doy_sin", "pe_mode concat/conv: set temporal_enc doy_sin (not used, no parameters)"
+            assert m["spatial_pe"] == "none", f"pe_mode {self.pe_mode}: set spatial_pe none"
+            ok_t = ("doy_sin", "index_sin") if self.pe_mode == "concat" else ("doy_sin", "none")
+            assert m["temporal_enc"] in ok_t, f"pe_mode {self.pe_mode}: temporal_enc must be one of {ok_t}"
+        self.concat_time = "index" if m["temporal_enc"] == "index_sin" else "date"
+        self.rel3d = None
+        if self.pe_mode == "rel3d":
+            assert self.G == 1, "rel3d is implemented for one token per patch (no spectral groups)"
+            assert self.attention == "joint", "rel3d is implemented for joint attention"
+            self.rel3d = RelativeBias3D(n_tokens_t, self.gh, self.gw, heads)
         if self.G > 1 and self.rel_bias is not None:
             raise ValueError("relative spatial PE is not supported with spectral groups")
 
@@ -112,7 +120,8 @@ class SITSTransformer(nn.Module):
             tok = tok + self.temporal_enc(doy_t)[:, :, None, :]
         elif self.pe_mode == "concat":
             from core.models.pe_variants import concat_sincos_pe
-            tok = tok + concat_sincos_pe(doy_t, self.gh, self.gw, G, dim, group_sin=(G > 1 and self.group_enc == "sin"))
+            tok = tok + concat_sincos_pe(doy_t, self.gh, self.gw, G, dim, group_sin=(G > 1 and self.group_enc == "sin"),
+                                         time=self.concat_time)
         if self.group_emb is not None:
             tok = tok + self.group_emb.repeat_interleave(n, dim=0)[None, None]
         bias = self.rel_bias() if self.rel_bias is not None else None  # (h, N, N)
@@ -121,6 +130,8 @@ class SITSTransformer(nn.Module):
             x = tok.reshape(b, t * gn, dim)                           # time-major, then group, then grid
             key_mask = mask_t[:, :, None].expand(b, t, gn).reshape(b, t * gn)
             full_bias = bias.repeat(1, t, t) if bias is not None else None
+            if self.rel3d is not None:
+                full_bias = self.rel3d()                                  # (h, T'N, T'N): time and space offsets
             if self.pe_mode == "conv":
                 for blk in self.encoder.blocks:
                     blk.mlp.set_grid(t, G, self.gh, self.gw, mask_t)

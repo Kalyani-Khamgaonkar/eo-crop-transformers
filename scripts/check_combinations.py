@@ -1,6 +1,7 @@
 """Combination checker: patchification x positional encoding under joint attention.
 
-Level 1 (mathematical, hard): grid, PE shape, parameter budget, memory.
+Level 1 (mathematical): HARD = grid divisibility and PE shape only (agreed 5 Nov).
+                        Parameter budget, token count and memory are SOFT: reported, never rejected.
 Level 2 (semantic, soft):      flags with the category they belong to; nothing is rejected on these.
 Level 3 (cost, measured later): tokens, attention elements, compression, rough time.
 
@@ -36,6 +37,14 @@ CONFIGS = [
     dict(id="case2", tok="patch2d", p=4, t=1, spatial="learnable", temporal="index_learned", pe="add", time_value="index", code=True),
     dict(id="case3", tok="tubelet", p=4, t=2, spatial="learnable", temporal="index_learned", pe="add", time_value="index", code=True),
     dict(id="case4", tok="cuboid", p=4, t=4, spatial="learnable", temporal="doy_sin", pe="add", time_value="start (verify)", code=True),
+    # ---- 6 Nov screening (2 patchifications x 6 encoding families; Galileo / OlmoEarth later)
+    dict(id="E0_2d", tok="patch2d", p=4, t=1, spatial="none", temporal="none", pe="add", time_value="none", code=True),
+    dict(id="E0_tube", tok="tubelet", p=4, t=2, spatial="none", temporal="none", pe="add", time_value="none", code=True),
+    dict(id="E1_tube", tok="tubelet", p=4, t=2, spatial="learnable", temporal="doy_sin", pe="add", time_value="midpoint", code=True),
+    dict(id="E4_2d", tok="patch2d", p=4, t=1, spatial="sinusoidal", temporal="index_sin", pe="concat", time_value="index", split=(64, 32, 32), code=True),
+    dict(id="E4_tube", tok="tubelet", p=4, t=2, spatial="sinusoidal", temporal="index_sin", pe="concat", time_value="index", split=(64, 32, 32), code=True),
+    dict(id="E5_2d", tok="patch2d", p=4, t=1, spatial="none", temporal="none", pe="rel3d", time_value="offset", code=True),
+    dict(id="E5_tube", tok="tubelet", p=4, t=2, spatial="none", temporal="none", pe="rel3d", time_value="offset", code=True),
 ]
 
 def analyse(c, S=SETUP):
@@ -64,25 +73,26 @@ def analyse(c, S=SETUP):
     spe = gh * gw * D if c["spatial"] == "learnable" else 0
     tpe = {"date_lookup": S["days_range"] * D, "index_learned": Tt * D}.get(c["temporal"], 0)
     conv = S["depth"] * (27 * D + D) if c["pe"] == "conv" else 0
+    conv += (2 * Tt - 1) * (2 * gh - 1) * (2 * gw - 1) * S["heads"] if c["pe"] == "rel3d" else 0
     eg = 3 * D if c.get("eg") else 0
     params = BASE_CORE + emb + head + spe + tpe + conv + eg
     lo, hi = S["param_budget"] * (1 - S["param_tol"]), S["param_budget"] * (1 + S["param_tol"])
-    if not lo <= params <= hi: hard.append(f"params: {params/1e6:.2f} M outside {lo/1e6:.2f} to {hi/1e6:.2f} M")
+    if not lo <= params <= hi: soft.append("(L1 soft) " + f"params: {params/1e6:.2f} M outside {lo/1e6:.2f} to {hi/1e6:.2f} M")
     # memory: naive attention scores stored for backward (bf16), all layers
     mem_naive = S["batch"] * S["heads"] * S["depth"] * N * N * 2 / 1e9
-    if mem_naive > S["gpu_gb"]: hard.append(f"memory: naive attention {mem_naive:.0f} GB > {S['gpu_gb']} GB (needs memory-efficient attention)")
+    if mem_naive > S["gpu_gb"]: soft.append("(L1 soft) " + f"memory: naive attention {mem_naive:.0f} GB > {S['gpu_gb']} GB (needs memory-efficient attention)")
 
     # ---- Level 2: soft (semantic) flags  (category numbers follow the 12-category list)
     if t > 1 and c["time_value"].startswith("start"):
         soft.append("(1) token covers several dates but gets the start date only")
     if t > 1 and c["time_value"] == "midpoint":
         soft.append("(1) midpoint time: interval length is lost; midpoint may be a day with no acquisition")
-    if c["temporal"] == "none" and c["pe"] != "conv":
+    if c["temporal"] == "none" and c["pe"] not in ("conv", "rel3d"):
         soft.append("(2) no temporal position signal")
     if c["pe"] == "conv":
         soft.append("(2)(4) conv PE: neighbour order only, real date gaps invisible")
         soft.append("(mask) conv runs across padded / dropped dates: needs mask handling")
-    if c["time_value"] == "index":
+    if c["time_value"] in ("index", "offset"):
         soft.append("(4) frame index: irregular gaps (5 to 55 days) treated as equal steps")
     if t > 1:
         soft.append(f"(3) {t} dates merged per token: span up to ~{(t-1)*S['max_gap_days']} days (median ~{(t-1)*S['median_gap_days']})")

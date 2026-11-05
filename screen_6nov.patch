@@ -1,0 +1,711 @@
+diff --git a/core/cli.py b/core/cli.py
+index bf96805..3c94dce 100644
+--- a/core/cli.py
++++ b/core/cli.py
+@@ -206,16 +206,17 @@ def num_runs(experiment_config):
+ @click.option("--run-index", default=0, type=int, help="Which entry in `runs` (Slurm array index)")
+ @click.option("--set", "sets", multiple=True, help="Extra override, e.g. --set train.lr=3e-4")
+ @click.option("--synthetic", is_flag=True, help="Fake data: smoke test without PASTIS")
+-@click.option("--no-strict-budget", is_flag=True, help="Do not stop when params are outside the budget")
++@click.option("--no-strict-budget", is_flag=True, help="Kept for old scripts; the budget no longer stops a run")
++@click.option("--strict-budget", is_flag=True, help="Stop when params are outside the budget (old behaviour)")
+ @click.option("--dry-run", is_flag=True, help="Print the resolved config and parameter count, then stop")
+ @click.option("--overfit", default=0, type=int, help="Sanity check: train AND validate on the first N training files")
+-def train(preset, experiment_config, run_index, sets, synthetic, no_strict_budget, dry_run, overfit):
++def train(preset, experiment_config, run_index, sets, synthetic, no_strict_budget, strict_budget, dry_run, overfit):
+     """Train one configuration."""
+     import yaml
+ 
+     from core.models.builder import build_model, check_param_budget, tokens_per_sample
+     from core.models.registry import preset_overrides
+-    from core.models.search_space import check
++    from core.models.search_space import check, soft_warnings
+     from core.training.train import run_training
+ 
+     overrides = preset_overrides(preset) if preset else {}
+@@ -230,13 +231,15 @@ def train(preset, experiment_config, run_index, sets, synthetic, no_strict_budge
+     problems = check(cfg)
+     if problems:
+         raise click.UsageError("Invalid configuration: " + "; ".join(problems))
++    for w in soft_warnings(cfg):
++        click.echo(f"[warn] {w}")
+ 
+     if dry_run:
+         click.echo(yaml.safe_dump({k: cfg[k] for k in ("run", "data", "model", "train")}, sort_keys=False))
+         _, ok, msg = check_param_budget(build_model(cfg), cfg)
+         click.echo(f"{msg} {'OK' if ok else 'OUTSIDE BUDGET'}, {tokens_per_sample(cfg)} tokens/sample")
+         return
+-    run_training(cfg, synthetic=synthetic, strict_budget=not no_strict_budget, overfit=overfit)
++    run_training(cfg, synthetic=synthetic, strict_budget=strict_budget, overfit=overfit)
+ 
+ 
+ @cli.command("evaluate_test")
+diff --git a/core/models/builder.py b/core/models/builder.py
+index 91baf78..868ae38 100644
+--- a/core/models/builder.py
++++ b/core/models/builder.py
+@@ -6,7 +6,8 @@ Design axes (config keys under `model`):
+     tokenizer     patch2d | tubelet | cuboid          (SO1)
+     attention     temporal_first | joint              (SO1, how time is processed)
+     spatial_pe    learnable | sinusoidal | relative | none   (SO2)
+-    temporal_enc  doy_sin | doy_learned | index_learned
++    temporal_enc  doy_sin | doy_learned | index_learned | index_sin | none
++    pe_mode       add | concat | conv | rel3d   (how position enters; rel3d = 3D relative bias, AgriFM)
+ 
+ Pipeline
+     tokens -> + spatial PE + temporal encoding -> encoder -> pool over time -> pixel head
+@@ -26,7 +27,7 @@ import torch
+ import torch.nn as nn
+ 
+ from core.models.blocks import Encoder
+-from core.models.pos_encoding import RelativeBias2D, SpatialPE, TemporalEncoding
++from core.models.pos_encoding import RelativeBias2D, RelativeBias3D, SpatialPE, TemporalEncoding
+ from core.models.tokenizers import build_tokenizer
+ 
+ 
+@@ -61,7 +62,7 @@ class SITSTransformer(nn.Module):
+         n_tokens_t = d["max_dates"] // pt
+         self.attention = m["attention"]
+ 
+-        self.pe_mode = m.get("pe_mode", "add")                      # add | concat | conv
++        self.pe_mode = m.get("pe_mode", "add")                      # add | concat | conv | rel3d
+         self.G = 3 if m["tokenizer"] == "groups" else 1
+         if m["tokenizer"] == "groups":
+             from core.models.pe_variants import SpectralGroupTokenizer
+@@ -78,8 +79,15 @@ class SITSTransformer(nn.Module):
+         if self.group_emb is not None:
+             nn.init.trunc_normal_(self.group_emb, std=0.02)
+         if self.pe_mode != "add":
+-            assert m["spatial_pe"] == "none", "pe_mode concat/conv: set spatial_pe none"
+-            assert m["temporal_enc"] == "doy_sin", "pe_mode concat/conv: set temporal_enc doy_sin (not used, no parameters)"
++            assert m["spatial_pe"] == "none", f"pe_mode {self.pe_mode}: set spatial_pe none"
++            ok_t = ("doy_sin", "index_sin") if self.pe_mode == "concat" else ("doy_sin", "none")
++            assert m["temporal_enc"] in ok_t, f"pe_mode {self.pe_mode}: temporal_enc must be one of {ok_t}"
++        self.concat_time = "index" if m["temporal_enc"] == "index_sin" else "date"
++        self.rel3d = None
++        if self.pe_mode == "rel3d":
++            assert self.G == 1, "rel3d is implemented for one token per patch (no spectral groups)"
++            assert self.attention == "joint", "rel3d is implemented for joint attention"
++            self.rel3d = RelativeBias3D(n_tokens_t, self.gh, self.gw, heads)
+         if self.G > 1 and self.rel_bias is not None:
+             raise ValueError("relative spatial PE is not supported with spectral groups")
+ 
+@@ -112,7 +120,8 @@ class SITSTransformer(nn.Module):
+             tok = tok + self.temporal_enc(doy_t)[:, :, None, :]
+         elif self.pe_mode == "concat":
+             from core.models.pe_variants import concat_sincos_pe
+-            tok = tok + concat_sincos_pe(doy_t, self.gh, self.gw, G, dim, group_sin=(G > 1 and self.group_enc == "sin"))
++            tok = tok + concat_sincos_pe(doy_t, self.gh, self.gw, G, dim, group_sin=(G > 1 and self.group_enc == "sin"),
++                                         time=self.concat_time)
+         if self.group_emb is not None:
+             tok = tok + self.group_emb.repeat_interleave(n, dim=0)[None, None]
+         bias = self.rel_bias() if self.rel_bias is not None else None  # (h, N, N)
+@@ -121,6 +130,8 @@ class SITSTransformer(nn.Module):
+             x = tok.reshape(b, t * gn, dim)                           # time-major, then group, then grid
+             key_mask = mask_t[:, :, None].expand(b, t, gn).reshape(b, t * gn)
+             full_bias = bias.repeat(1, t, t) if bias is not None else None
++            if self.rel3d is not None:
++                full_bias = self.rel3d()                                  # (h, T'N, T'N): time and space offsets
+             if self.pe_mode == "conv":
+                 for blk in self.encoder.blocks:
+                     blk.mlp.set_grid(t, G, self.gh, self.gw, mask_t)
+diff --git a/core/models/pe_variants.py b/core/models/pe_variants.py
+index 7a48ed7..cbdeea9 100644
+--- a/core/models/pe_variants.py
++++ b/core/models/pe_variants.py
+@@ -40,10 +40,14 @@ class SpectralGroupTokenizer(nn.Module):
+         return torch.cat(out, dim=2), doy, mask
+ 
+ 
+-def concat_sincos_pe(doy_t: torch.Tensor, gh: int, gw: int, groups: int, dim: int, group_sin: bool) -> torch.Tensor:
+-    """Concatenated sin-cos position (SatMAE style). Returns (B, T', G*N, D).
++def concat_sincos_pe(doy_t: torch.Tensor, gh: int, gw: int, groups: int, dim: int, group_sin: bool,
++                     time: str = "date") -> torch.Tensor:
++    """Concatenated sin-cos position. Returns (B, T', G*N, D).
++    time = "date": real acquisition day (SatMAE); "index": frame number 0, 1, 2, ... (Prithvi, TiMo).
+     Split: (t, y, x) = (D/2, D/4, D/4); with group_sin (t, y, x, g) = (D/4, D/4, D/4, D/4)."""
+     b, t = doy_t.shape
++    if time == "index":
++        doy_t = torch.arange(t, device=doy_t.device).expand(b, t)
+     n = gh * gw
+     dt, dy = (dim // 4, dim // 4) if group_sin else (dim // 2, dim // 4)
+     assert dt % 2 == 0 and dy % 2 == 0
+diff --git a/core/models/pos_encoding.py b/core/models/pos_encoding.py
+index 87b1c39..47aeb4c 100644
+--- a/core/models/pos_encoding.py
++++ b/core/models/pos_encoding.py
+@@ -12,6 +12,14 @@ Temporal (when a token was observed)
+     doy_learned    trained vector per acquisition day          (TSViT)
+     (PASTIS spans ~15 months, so "day" = days since 2018-09-01, range 0..~460)
+     index_learned  trained vector per token index, ignores real dates (plain ViT)
++    index_sin      fixed sine / cosine of the token index (frame number)  (Prithvi, TiMo)
++    none           no temporal information (ablation, "no PE" floor)
++
++Learned tables (doy_learned, index_learned) start at std 0.02, like the learnable spatial PE,
++so every learned position table starts from the same small values (nn.Embedding default is std 1).
++
++Relative 3D (pe_mode rel3d): one learned bias per head for every (dt, dy, dx) offset between
++two tokens, added to the attention scores (Video Swin / AgriFM). dt is the frame offset.
+ """
+ 
+ from __future__ import annotations
+@@ -87,13 +95,37 @@ class TemporalEncoding(nn.Module):
+             self.emb = nn.Embedding(MAX_DAY + 1, dim)
+         elif kind == "index_learned":
+             self.emb = nn.Embedding(max_tokens, dim)
+-        elif kind != "doy_sin":
++        elif kind not in ("doy_sin", "index_sin", "none"):
+             raise ValueError(f"Unknown temporal_enc '{kind}'")
++        if hasattr(self, "emb"):
++            nn.init.trunc_normal_(self.emb.weight, std=0.02)   # same start as the learnable spatial PE
+ 
+     def forward(self, doy: torch.Tensor) -> torch.Tensor:
++        idx = torch.arange(doy.shape[1], device=doy.device).expand_as(doy)
+         if self.kind == "doy_sin":
+             return sincos_1d(doy, self.dim, max_period=1000.0)
++        if self.kind == "index_sin":
++            return sincos_1d(idx, self.dim, max_period=1000.0)
++        if self.kind == "none":
++            return torch.zeros(*doy.shape, self.dim, device=doy.device)
+         if self.kind == "doy_learned":
+             return self.emb(doy.clamp(0, MAX_DAY))
+-        idx = torch.arange(doy.shape[1], device=doy.device).expand_as(doy)
+         return self.emb(idx)
++
++
++class RelativeBias3D(nn.Module):
++    """Learned attention bias per head for every (dt, dy, dx) offset in a t x gh x gw token grid.
++    Tokens are ordered time-major, then row, then column (as in the joint encoder)."""
++
++    def __init__(self, t: int, gh: int, gw: int, heads: int):
++        super().__init__()
++        self.table = nn.Parameter(torch.zeros((2 * t - 1) * (2 * gh - 1) * (2 * gw - 1), heads))
++        nn.init.trunc_normal_(self.table, std=0.02)
++        ts, ys, xs = torch.meshgrid(torch.arange(t), torch.arange(gh), torch.arange(gw), indexing="ij")
++        c = torch.stack([ts.flatten(), ys.flatten(), xs.flatten()])   # (3, N)
++        rel = c[:, :, None] - c[:, None, :]                            # (3, N, N)
++        idx = ((rel[0] + t - 1) * (2 * gh - 1) + (rel[1] + gh - 1)) * (2 * gw - 1) + (rel[2] + gw - 1)
++        self.register_buffer("idx", idx, persistent=False)
++
++    def forward(self) -> torch.Tensor:
++        return self.table[self.idx].permute(2, 0, 1)                   # (heads, N, N)
+diff --git a/core/models/search_space.py b/core/models/search_space.py
+index 52e3c01..616762d 100644
+--- a/core/models/search_space.py
++++ b/core/models/search_space.py
+@@ -31,32 +31,57 @@ JOINT_TOKEN_BUDGET_GROUPS = 6480  # spectral groups: 3 tokens per patch and date
+ 
+ 
+ def check(cfg: dict, check_params: bool = True) -> list[str]:
+-    """Return the reasons a configuration is invalid (empty list = valid)."""
++    """HARD criteria only: the reasons a configuration cannot be built (empty list = valid).
++
++    Agreed 5 Nov: only (1) grid divisibility and (2) positional-encoding shape are hard.
++    Token count, parameter budget and memory are soft: see `warnings`; they never reject.
++    `check_params` is kept for old callers and has no effect.
++    """
+     m, d = cfg["model"], cfg["data"]
+     reasons = []
+-    p, pt = m["patch_size"], m["tubelet_t"]
++    p, pt, D = m["patch_size"], m["tubelet_t"], m["dim"]
++    # (1) grid divisibility
+     if d["img_size"] % p:
+-        reasons.append(f"img_size {d['img_size']} not divisible by patch {p}")
++        reasons.append(f"grid: img_size {d['img_size']} not divisible by patch {p}")
+     if m["tokenizer"] == "patch2d" and pt != 1:
+-        reasons.append("patch2d needs tubelet_t = 1")
+-    if m["tokenizer"] != "patch2d":
++        reasons.append("grid: patch2d uses one date per token (tubelet_t = 1)")
++    if m["tokenizer"] in ("tubelet", "cuboid"):
+         if pt < 2:
+-            reasons.append(f"{m['tokenizer']} needs tubelet_t >= 2") if m["tokenizer"] != "groups" else None
+-        if d["max_dates"] % pt:
+-            reasons.append(f"max_dates {d['max_dates']} not divisible by tubelet_t {pt}")
+-        if d["max_dates"] // max(pt, 1) < 4:
+-            reasons.append("fewer than 4 time tokens left")
+-    if m["spatial_pe"] == "sinusoidal" and m["dim"] % 4:
+-        reasons.append("sinusoidal 2D PE needs dim divisible by 4")
+-    if m["attention"] == "joint" and tokens_per_sample(cfg) > JOINT_TOKEN_BUDGET:
+-        reasons.append(f"joint attention over {tokens_per_sample(cfg)} tokens > budget {JOINT_TOKEN_BUDGET_GROUPS if cfg['model']['tokenizer'] == 'groups' else JOINT_TOKEN_BUDGET}") if tokens_per_sample(cfg) > (JOINT_TOKEN_BUDGET_GROUPS if cfg["model"]["tokenizer"] == "groups" else JOINT_TOKEN_BUDGET) else None
+-    if not reasons and check_params:
+-        # Large blocks make the patch embedding and pixel head big (C*pt*p*p*D and D*K*p*p),
+-        # which can push the model outside the shared parameter budget.
++            reasons.append(f"grid: {m['tokenizer']} needs tubelet_t >= 2")
++        elif d["max_dates"] % pt:
++            reasons.append(f"grid: max_dates {d['max_dates']} not divisible by tubelet_t {pt}")
++    # (2) positional-encoding shape: every position vector must have exactly D numbers
++    pe_mode = m.get("pe_mode", "add")
++    if m["spatial_pe"] == "sinusoidal" and D % 4:
++        reasons.append(f"PE shape: 2D sin-cos needs D divisible by 4 (D = {D})")
++    if m["temporal_enc"] in ("doy_sin", "index_sin") and D % 2:
++        reasons.append(f"PE shape: sin-cos needs an even D (D = {D})")
++    if pe_mode == "concat":
++        parts = (D // 4, D // 4, D // 4, D // 4) if (m["tokenizer"] == "groups" and m.get("group_enc") == "sin") \
++            else (D // 2, D // 4, D // 4)
++        parts = parts[:-1] + (D - sum(parts[:-1]),)
++        if sum(parts) != D or any(x % 2 for x in parts):
++            reasons.append(f"PE shape: concat split {parts} must be even parts summing to D = {D}")
++    return reasons
++
++
++def soft_warnings(cfg: dict) -> list[str]:
++    """SOFT criteria: reported, never a reason to reject (token count, parameter budget, few time tokens)."""
++    m, d = cfg["model"], cfg["data"]
++    out = []
++    n = tokens_per_sample(cfg)
++    budget = JOINT_TOKEN_BUDGET_GROUPS if m["tokenizer"] == "groups" else JOINT_TOKEN_BUDGET
++    if m["attention"] == "joint" and n > budget:
++        out.append(f"tokens: {n} > {budget} (slow / memory heavy, still allowed)")
++    if m["tokenizer"] in ("tubelet", "cuboid") and m["tubelet_t"] >= 2 and d["max_dates"] // m["tubelet_t"] < 4:
++        out.append("time: fewer than 4 time tokens")
++    try:
+         _, ok, msg = check_param_budget(build_model(cfg), cfg)
+         if not ok:
+-            reasons.append(msg)
+-    return reasons
++            out.append(f"params: {msg} (outside budget, still allowed)")
++    except Exception as e:  # a build error is reported by the caller
++        out.append(f"build: {type(e).__name__}: {e}")
++    return out
+ 
+ 
+ def enumerate_configs(base_cfg: dict) -> tuple[list[dict], list[tuple[dict, list[str]]]]:
+diff --git a/core/training/train.py b/core/training/train.py
+index 98983c8..a5aa3a6 100644
+--- a/core/training/train.py
++++ b/core/training/train.py
+@@ -165,7 +165,7 @@ def evaluate(model, loader, loss_fn, device, cfg) -> dict:
+ 
+ # ---------------------------------------------------------------- main entry
+ 
+-def run_training(cfg: dict, synthetic: bool = False, strict_budget: bool = True, overfit: int = 0) -> dict:
++def run_training(cfg: dict, synthetic: bool = False, strict_budget: bool = False, overfit: int = 0) -> dict:
+     paths = get_paths()
+     run_dir = paths.checkpoints / cfg["run"]["name"]
+     run_dir.mkdir(parents=True, exist_ok=True)
+@@ -175,8 +175,10 @@ def run_training(cfg: dict, synthetic: bool = False, strict_budget: bool = True,
+     model = build_model(cfg).to(device)
+     n_params, ok, msg = check_param_budget(model, cfg)
+     print(f"[model] {msg}, {tokens_per_sample(cfg)} tokens/sample")
+-    if not ok and strict_budget:
+-        raise ValueError(f"Parameter budget violated: {msg}. Use --no-strict-budget only for debugging.")
++    if not ok:  # soft criterion (agreed 5 Nov): report, do not stop, unless --strict-budget
++        if strict_budget:
++            raise ValueError(f"Parameter budget violated: {msg} (--strict-budget is on).")
++        print(f"[warn] parameter budget: {msg}; continuing (soft criterion)")
+ 
+     train_dl, val_dl, counts = build_loaders(cfg, synthetic, overfit)
+     loss_fn = build_loss(cfg, counts).to(device)
+diff --git a/experiments/pe_screen_6nov.yaml b/experiments/pe_screen_6nov.yaml
+new file mode 100644
+index 0000000..801b6cf
+--- /dev/null
++++ b/experiments/pe_screen_6nov.yaml
+@@ -0,0 +1,52 @@
++# 6 Nov screening: 2 patchifications x 6 encoding families, joint attention, final hyperparameters, 5%, fold I.
++# E0 none | E1 date sinusoid (baseline) | E2 learned date table (TSViT, SkySense; new 0.02 start) | E3 conv (VistaFormer)
++# E4 sin-cos of frame index, concatenated (Prithvi, TiMo) | E5 3D relative bias (AgriFM)
++# Already done elsewhere: 2D+E1 = baseline, 2D+E3 = C2, tube+E3 = C5 (nine_rest).
++# Order: tier 1 (must have), tier 2, tier 3; inside a tier seed 42 first, so every config gets 1 seed early.
++name: pe_screen_6nov
++
++base:
++  model.attention: joint
++  model.patch_size: 4
++  model.dropout: 1.0e-01
++  model.drop_path: 1.0e-01
++  train.optimizer: sgd
++  train.lr: 1.0e-01
++  train.weight_decay: 5.0e-04
++  train.augment: flip_date
++  train.label_smoothing: 0.0e+00
++  train.loss: weighted_ce
++  data.subset_fraction: 5.0e-02
++  data.num_workers: 6
++
++runs:
++  # tier 1
++  - {id: C1b_2d_E2_s42, model.tokenizer: patch2d, model.tubelet_t: 1, model.pe_mode: add, model.spatial_pe: learnable, model.temporal_enc: doy_learned, train.seed: 42}
++  - {id: C4b_tube_E2_s42, model.tokenizer: tubelet, model.tubelet_t: 2, model.pe_mode: add, model.spatial_pe: learnable, model.temporal_enc: doy_learned, train.seed: 42}
++  - {id: E1_tube_s42, model.tokenizer: tubelet, model.tubelet_t: 2, model.pe_mode: add, model.spatial_pe: learnable, model.temporal_enc: doy_sin, train.seed: 42}
++  - {id: E0_2d_s42, model.tokenizer: patch2d, model.tubelet_t: 1, model.pe_mode: add, model.spatial_pe: none, model.temporal_enc: none, train.seed: 42}
++  - {id: E0_tube_s42, model.tokenizer: tubelet, model.tubelet_t: 2, model.pe_mode: add, model.spatial_pe: none, model.temporal_enc: none, train.seed: 42}
++  - {id: C1b_2d_E2_s1, model.tokenizer: patch2d, model.tubelet_t: 1, model.pe_mode: add, model.spatial_pe: learnable, model.temporal_enc: doy_learned, train.seed: 1}
++  - {id: C4b_tube_E2_s1, model.tokenizer: tubelet, model.tubelet_t: 2, model.pe_mode: add, model.spatial_pe: learnable, model.temporal_enc: doy_learned, train.seed: 1}
++  - {id: E1_tube_s1, model.tokenizer: tubelet, model.tubelet_t: 2, model.pe_mode: add, model.spatial_pe: learnable, model.temporal_enc: doy_sin, train.seed: 1}
++  - {id: E0_2d_s1, model.tokenizer: patch2d, model.tubelet_t: 1, model.pe_mode: add, model.spatial_pe: none, model.temporal_enc: none, train.seed: 1}
++  - {id: E0_tube_s1, model.tokenizer: tubelet, model.tubelet_t: 2, model.pe_mode: add, model.spatial_pe: none, model.temporal_enc: none, train.seed: 1}
++  - {id: C1b_2d_E2_s2, model.tokenizer: patch2d, model.tubelet_t: 1, model.pe_mode: add, model.spatial_pe: learnable, model.temporal_enc: doy_learned, train.seed: 2}
++  - {id: C4b_tube_E2_s2, model.tokenizer: tubelet, model.tubelet_t: 2, model.pe_mode: add, model.spatial_pe: learnable, model.temporal_enc: doy_learned, train.seed: 2}
++  - {id: E1_tube_s2, model.tokenizer: tubelet, model.tubelet_t: 2, model.pe_mode: add, model.spatial_pe: learnable, model.temporal_enc: doy_sin, train.seed: 2}
++  - {id: E0_2d_s2, model.tokenizer: patch2d, model.tubelet_t: 1, model.pe_mode: add, model.spatial_pe: none, model.temporal_enc: none, train.seed: 2}
++  - {id: E0_tube_s2, model.tokenizer: tubelet, model.tubelet_t: 2, model.pe_mode: add, model.spatial_pe: none, model.temporal_enc: none, train.seed: 2}
++  # tier 2
++  - {id: E4_2d_s42, model.tokenizer: patch2d, model.tubelet_t: 1, model.pe_mode: concat, model.spatial_pe: none, model.temporal_enc: index_sin, train.seed: 42}
++  - {id: E4_tube_s42, model.tokenizer: tubelet, model.tubelet_t: 2, model.pe_mode: concat, model.spatial_pe: none, model.temporal_enc: index_sin, train.seed: 42}
++  - {id: E4_2d_s1, model.tokenizer: patch2d, model.tubelet_t: 1, model.pe_mode: concat, model.spatial_pe: none, model.temporal_enc: index_sin, train.seed: 1}
++  - {id: E4_tube_s1, model.tokenizer: tubelet, model.tubelet_t: 2, model.pe_mode: concat, model.spatial_pe: none, model.temporal_enc: index_sin, train.seed: 1}
++  - {id: E4_2d_s2, model.tokenizer: patch2d, model.tubelet_t: 1, model.pe_mode: concat, model.spatial_pe: none, model.temporal_enc: index_sin, train.seed: 2}
++  - {id: E4_tube_s2, model.tokenizer: tubelet, model.tubelet_t: 2, model.pe_mode: concat, model.spatial_pe: none, model.temporal_enc: index_sin, train.seed: 2}
++  # tier 3
++  - {id: E5_tube_s42, model.tokenizer: tubelet, model.tubelet_t: 2, model.pe_mode: rel3d, model.spatial_pe: none, model.temporal_enc: none, train.seed: 42}
++  - {id: E5_2d_s42, model.tokenizer: patch2d, model.tubelet_t: 1, model.pe_mode: rel3d, model.spatial_pe: none, model.temporal_enc: none, train.seed: 42}
++  - {id: E5_tube_s1, model.tokenizer: tubelet, model.tubelet_t: 2, model.pe_mode: rel3d, model.spatial_pe: none, model.temporal_enc: none, train.seed: 1}
++  - {id: E5_2d_s1, model.tokenizer: patch2d, model.tubelet_t: 1, model.pe_mode: rel3d, model.spatial_pe: none, model.temporal_enc: none, train.seed: 1}
++  - {id: E5_tube_s2, model.tokenizer: tubelet, model.tubelet_t: 2, model.pe_mode: rel3d, model.spatial_pe: none, model.temporal_enc: none, train.seed: 2}
++  - {id: E5_2d_s2, model.tokenizer: patch2d, model.tubelet_t: 1, model.pe_mode: rel3d, model.spatial_pe: none, model.temporal_enc: none, train.seed: 2}
+diff --git a/experiments/scale_20pct.yaml b/experiments/scale_20pct.yaml
+new file mode 100644
+index 0000000..58058b4
+--- /dev/null
++++ b/experiments/scale_20pct.yaml
+@@ -0,0 +1,22 @@
++# Optional data-scaling check: 20% subset of fold I, seed 42 (needs: make_subset --fraction 0.2).
++# Same models at 5% are in hp_final (baseline), pe_screen_6nov (C1b), nine_rest (C5).
++name: scale_20pct
++
++base:
++  model.attention: joint
++  model.patch_size: 4
++  model.dropout: 1.0e-01
++  model.drop_path: 1.0e-01
++  train.optimizer: sgd
++  train.lr: 1.0e-01
++  train.weight_decay: 5.0e-04
++  train.augment: flip_date
++  train.label_smoothing: 0.0e+00
++  train.loss: weighted_ce
++  data.subset_fraction: 2.0e-01
++  data.num_workers: 6
++
++runs:
++  - {id: baseline_2d_E1_s42, model.tokenizer: patch2d, model.tubelet_t: 1, model.pe_mode: add, model.spatial_pe: learnable, model.temporal_enc: doy_sin, train.seed: 42}
++  - {id: C1b_2d_E2_s42, model.tokenizer: patch2d, model.tubelet_t: 1, model.pe_mode: add, model.spatial_pe: learnable, model.temporal_enc: doy_learned, train.seed: 42}
++  - {id: C5_tube_E3_s42, model.tokenizer: tubelet, model.tubelet_t: 2, model.pe_mode: conv, model.spatial_pe: none, model.temporal_enc: doy_sin, train.seed: 42}
+diff --git a/scripts/analyse_screen.py b/scripts/analyse_screen.py
+new file mode 100644
+index 0000000..f036863
+--- /dev/null
++++ b/scripts/analyse_screen.py
+@@ -0,0 +1,89 @@
++"""2 x 6 results table for the 6 Nov screening (val macro mIoU, mean +/- std over seeds).
++
++    python scripts/analyse_screen.py
++
++Sources: pe_screen_6nov (new cells), nine_rest (C2 = 2D + conv, C5 = tubelet + conv),
++nine_c1_c4 (old C1 / C4, date table with the old N(0,1) start, shown for comparison),
++scale_20pct (optional). Baseline (2D + date sinusoid) is the Stage 4 result.
++"""
++import re
++import statistics as st
++
++import yaml
++
++EP = re.compile(r"\[ep\s+(\d+)\] loss ([\d.]+)/([\d.]+)\s+mIoU ([\d.]+)/([\d.]+)\s+OA ([\d.]+)/([\d.]+)\s+(\d+)s")
++BASELINE = (0.454, 0.015, 3)
++
++
++def collect(exp, key=lambda rid: rid.rsplit("_s", 1)[0]):
++    res = {}
++    try:
++        runs = yaml.safe_load(open(f"experiments/{exp}.yaml"))["runs"]
++    except FileNotFoundError:
++        return res
++    for i, r in enumerate(runs):
++        try:
++            t = open(f"logs/run_{exp}_{i}.out").read()
++        except FileNotFoundError:
++            continue
++        m = re.search(r"best val mIoU ([\d.]+) at epoch (\d+)", t)
++        if not m:
++            continue
++        ep = {int(e[0]): [float(x) for x in e[1:]] for e in EP.findall(t)}
++        b = int(m.group(2))
++        res.setdefault(key(r["id"]), []).append(dict(
++            val=float(m.group(1)),
++            gap=ep[b][2] - ep[b][3] if b in ep else float("nan"),
++            oa=ep[b][5] if b in ep else float("nan"),
++            sec=st.median(v[6] for v in ep.values()) if ep else float("nan")))
++    return res
++
++
++def fmt(v):
++    if not v:
++        return "-"
++    x = [d["val"] for d in v]
++    return f"{st.mean(x):.3f}" + (f" +/- {st.stdev(x):.3f}" if len(x) > 1 else "") + f" (n={len(x)})"
++
++
++def main():
++    new = collect("pe_screen_6nov")
++    old9 = collect("nine_rest", key=lambda rid: rid[:2])
++    old14 = collect("nine_c1_c4", key=lambda rid: rid[:2])
++    cells = {
++        ("2D", "E0"): new.get("E0_2d"), ("Tubelet", "E0"): new.get("E0_tube"),
++        ("2D", "E1"): None, ("Tubelet", "E1"): new.get("E1_tube"),
++        ("2D", "E2"): new.get("C1b_2d_E2"), ("Tubelet", "E2"): new.get("C4b_tube_E2"),
++        ("2D", "E3"): old9.get("C2"), ("Tubelet", "E3"): old9.get("C5"),
++        ("2D", "E4"): new.get("E4_2d"), ("Tubelet", "E4"): new.get("E4_tube"),
++        ("2D", "E5"): new.get("E5_2d"), ("Tubelet", "E5"): new.get("E5_tube"),
++    }
++    cols = [("E0", "None"), ("E1", "Date sinusoid"), ("E2", "Date table"), ("E3", "Conv PE"),
++            ("E4", "Frame idx concat"), ("E5", "3D rel. bias")]
++    print("Validation macro mIoU, 5% subset, fold I (mean +/- std over seeds)\n")
++    print(f"{'':9}" + "".join(f"{c + ' ' + n:26}" for c, n in cols))
++    for row in ("2D", "Tubelet"):
++        line = f"{row:9}"
++        for c, _ in cols:
++            if (row, c) == ("2D", "E1"):
++                line += f"{f'{BASELINE[0]:.3f} +/- {BASELINE[1]:.3f} (n=3)':26}"
++            else:
++                line += f"{fmt(cells[(row, c)]):26}"
++        print(line)
++    print("\nDate table, old start (N(0,1)) vs new start (std 0.02):")
++    print(f"  2D      old C1 {fmt(old14.get('C1')):24} new C1b {fmt(new.get('C1b_2d_E2'))}")
++    print(f"  Tubelet old C4 {fmt(old14.get('C4')):24} new C4b {fmt(new.get('C4b_tube_E2'))}")
++    print("\nid                 n  val mIoU          gap    OA     s/epoch")
++    for name, v in sorted({**new, **{k: old9[k] for k in ("C2", "C5") if k in old9}}.items()):
++        x = [d["val"] for d in v]
++        print(f"{name:18} {len(x)}  {st.mean(x):.3f} +/- {st.stdev(x) if len(x) > 1 else 0:.3f}  "
++              f"{st.mean(d['gap'] for d in v):.3f}  {st.mean(d['oa'] for d in v):.3f}  {st.mean(d['sec'] for d in v):.0f}")
++    sc = collect("scale_20pct")
++    if sc:
++        print("\n20% subset (seed 42):")
++        for k, v in sc.items():
++            print(f"  {k:20} {fmt(v)}")
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/scripts/check_combinations.py b/scripts/check_combinations.py
+index fb2e361..484cc25 100644
+--- a/scripts/check_combinations.py
++++ b/scripts/check_combinations.py
+@@ -1,6 +1,7 @@
+ """Combination checker: patchification x positional encoding under joint attention.
+ 
+-Level 1 (mathematical, hard): grid, PE shape, parameter budget, memory.
++Level 1 (mathematical): HARD = grid divisibility and PE shape only (agreed 5 Nov).
++                        Parameter budget, token count and memory are SOFT: reported, never rejected.
+ Level 2 (semantic, soft):      flags with the category they belong to; nothing is rejected on these.
+ Level 3 (cost, measured later): tokens, attention elements, compression, rough time.
+ 
+@@ -36,6 +37,14 @@ CONFIGS = [
+     dict(id="case2", tok="patch2d", p=4, t=1, spatial="learnable", temporal="index_learned", pe="add", time_value="index", code=True),
+     dict(id="case3", tok="tubelet", p=4, t=2, spatial="learnable", temporal="index_learned", pe="add", time_value="index", code=True),
+     dict(id="case4", tok="cuboid", p=4, t=4, spatial="learnable", temporal="doy_sin", pe="add", time_value="start (verify)", code=True),
++    # ---- 6 Nov screening (2 patchifications x 6 encoding families; Galileo / OlmoEarth later)
++    dict(id="E0_2d", tok="patch2d", p=4, t=1, spatial="none", temporal="none", pe="add", time_value="none", code=True),
++    dict(id="E0_tube", tok="tubelet", p=4, t=2, spatial="none", temporal="none", pe="add", time_value="none", code=True),
++    dict(id="E1_tube", tok="tubelet", p=4, t=2, spatial="learnable", temporal="doy_sin", pe="add", time_value="midpoint", code=True),
++    dict(id="E4_2d", tok="patch2d", p=4, t=1, spatial="sinusoidal", temporal="index_sin", pe="concat", time_value="index", split=(64, 32, 32), code=True),
++    dict(id="E4_tube", tok="tubelet", p=4, t=2, spatial="sinusoidal", temporal="index_sin", pe="concat", time_value="index", split=(64, 32, 32), code=True),
++    dict(id="E5_2d", tok="patch2d", p=4, t=1, spatial="none", temporal="none", pe="rel3d", time_value="offset", code=True),
++    dict(id="E5_tube", tok="tubelet", p=4, t=2, spatial="none", temporal="none", pe="rel3d", time_value="offset", code=True),
+ ]
+ 
+ def analyse(c, S=SETUP):
+@@ -64,25 +73,26 @@ def analyse(c, S=SETUP):
+     spe = gh * gw * D if c["spatial"] == "learnable" else 0
+     tpe = {"date_lookup": S["days_range"] * D, "index_learned": Tt * D}.get(c["temporal"], 0)
+     conv = S["depth"] * (27 * D + D) if c["pe"] == "conv" else 0
++    conv += (2 * Tt - 1) * (2 * gh - 1) * (2 * gw - 1) * S["heads"] if c["pe"] == "rel3d" else 0
+     eg = 3 * D if c.get("eg") else 0
+     params = BASE_CORE + emb + head + spe + tpe + conv + eg
+     lo, hi = S["param_budget"] * (1 - S["param_tol"]), S["param_budget"] * (1 + S["param_tol"])
+-    if not lo <= params <= hi: hard.append(f"params: {params/1e6:.2f} M outside {lo/1e6:.2f} to {hi/1e6:.2f} M")
++    if not lo <= params <= hi: soft.append("(L1 soft) " + f"params: {params/1e6:.2f} M outside {lo/1e6:.2f} to {hi/1e6:.2f} M")
+     # memory: naive attention scores stored for backward (bf16), all layers
+     mem_naive = S["batch"] * S["heads"] * S["depth"] * N * N * 2 / 1e9
+-    if mem_naive > S["gpu_gb"]: hard.append(f"memory: naive attention {mem_naive:.0f} GB > {S['gpu_gb']} GB (needs memory-efficient attention)")
++    if mem_naive > S["gpu_gb"]: soft.append("(L1 soft) " + f"memory: naive attention {mem_naive:.0f} GB > {S['gpu_gb']} GB (needs memory-efficient attention)")
+ 
+     # ---- Level 2: soft (semantic) flags  (category numbers follow the 12-category list)
+     if t > 1 and c["time_value"].startswith("start"):
+         soft.append("(1) token covers several dates but gets the start date only")
+     if t > 1 and c["time_value"] == "midpoint":
+         soft.append("(1) midpoint time: interval length is lost; midpoint may be a day with no acquisition")
+-    if c["temporal"] == "none" and c["pe"] != "conv":
++    if c["temporal"] == "none" and c["pe"] not in ("conv", "rel3d"):
+         soft.append("(2) no temporal position signal")
+     if c["pe"] == "conv":
+         soft.append("(2)(4) conv PE: neighbour order only, real date gaps invisible")
+         soft.append("(mask) conv runs across padded / dropped dates: needs mask handling")
+-    if c["time_value"] == "index":
++    if c["time_value"] in ("index", "offset"):
+         soft.append("(4) frame index: irregular gaps (5 to 55 days) treated as equal steps")
+     if t > 1:
+         soft.append(f"(3) {t} dates merged per token: span up to ~{(t-1)*S['max_gap_days']} days (median ~{(t-1)*S['median_gap_days']})")
+diff --git a/scripts/screen_check.py b/scripts/screen_check.py
+new file mode 100644
+index 0000000..3fa1810
+--- /dev/null
++++ b/scripts/screen_check.py
+@@ -0,0 +1,98 @@
++"""Build check for the 6 Nov screening (pe_screen_6nov.yaml) plus the reference cells.
++Real model, params (soft), tokens, forward + backward with 10 padded dates, padding-invariance test.
++
++    python scripts/screen_check.py              # batch 2, all configs, T = 60 (GPU)
++    python scripts/screen_check.py 2 all 12     # T = 12: quick logic check on CPU
++
++Hard criteria (a FAIL): grid divisibility and PE shape (search_space.check), build error,
++wrong output shape, missing / non-finite gradients, padding changes the output.
++Soft (reported only): parameter budget, token count.
++"""
++import os
++import sys
++
++sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
++import torch
++import yaml
++
++from core.config import apply_overrides, load_protocol
++from core.models.builder import build_model, check_param_budget, tokens_per_sample
++from core.models.search_space import check
++
++ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
++
++
++def configs():
++    """One entry per config id (seed 42 run) from the screening file, plus the reference cells."""
++    out = {}
++    for f in ("pe_screen_6nov.yaml", "nine_rest.yaml"):
++        exp = yaml.safe_load(open(os.path.join(ROOT, "experiments", f)))
++        for r in exp["runs"]:
++            cid = r["id"].rsplit("_s", 1)[0]
++            if f == "nine_rest.yaml" and cid not in ("C2_2d_conv", "C5_tube2_conv"):
++                continue
++            out.setdefault(cid, {**exp["base"], **{k: v for k, v in r.items() if k != "id"}})
++    out["baseline_2d_E1"] = {**out["E1_tube"], "model.tokenizer": "patch2d", "model.tubelet_t": 1}
++    return out
++
++
++def batch(cfg, B, dev, pad=10):
++    d = cfg["data"]; T, C, H = d["max_dates"], d["bands"], d["img_size"]
++    pad = min(pad, T // 3) // 2 * 2                    # even, so tubelets never mix real and padded dates
++    x = torch.randn(B, T, C, H, H, device=dev)
++    doy = torch.zeros(B, T, dtype=torch.long, device=dev)
++    doy[:, :T - pad] = torch.sort(torch.randint(0, 456, (B, T - pad), device=dev), dim=1).values
++    mask = torch.zeros(B, T, dtype=torch.bool, device=dev); mask[:, :T - pad] = True
++    x[~mask] = 0.0
++    return x, doy, mask
++
++
++def main():
++    B = int(sys.argv[1]) if len(sys.argv) > 1 else 2
++    cfgs = configs()
++    only = sys.argv[2].split(",") if len(sys.argv) > 2 and sys.argv[2] != "all" else list(cfgs)
++    T = int(sys.argv[3]) if len(sys.argv) > 3 else None
++    dev = "cuda" if torch.cuda.is_available() else "cpu"
++    print(f"device {dev}, batch {B}, max_dates {T or 60}\n")
++    print(f"{'id':16} {'params':>10} {'budget':7} {'tokens':>6} {'out':16} {'grads':5} {'pad-inv':7} {'peak GB':>7}  result")
++    n_fail = 0
++    for cid in only:
++        try:
++            cfg = apply_overrides(load_protocol(), cfgs[cid])
++            if T:
++                cfg["data"]["max_dates"] = T
++            hard = check(cfg)
++            if hard:
++                raise ValueError("hard criteria: " + "; ".join(hard))
++            torch.manual_seed(0)
++            model = build_model(cfg).to(dev)
++            n, ok, _ = check_param_budget(model, cfg)
++            x, doy, mask = batch(cfg, B, dev)
++            if dev == "cuda":
++                torch.cuda.reset_peak_memory_stats()
++            model.train()
++            with torch.autocast(dev, dtype=torch.bfloat16, enabled=(dev == "cuda")):
++                out = model(x, doy, mask)
++            out.float().mean().backward()
++            bad = sum(1 for p in model.parameters() if p.requires_grad and (p.grad is None or not torch.isfinite(p.grad).all()))
++            peak = torch.cuda.max_memory_allocated() / 1e9 if dev == "cuda" else float("nan")
++            model.eval()
++            with torch.no_grad():
++                y1 = model(x, doy, mask)
++                x2 = x.clone(); x2[~mask] = torch.randn_like(x2[~mask]) * 5
++                y2 = model(x2, doy, mask)
++            pad_ok = torch.allclose(y1, y2, atol=1e-4)
++            K, H = cfg["data"]["num_classes"], cfg["data"]["img_size"]
++            good = tuple(out.shape) == (B, K, H, H) and not bad and pad_ok
++            n_fail += not good
++            print(f"{cid:16} {n:10,d} {'ok' if ok else 'soft!':7} {tokens_per_sample(cfg):6d} {str(tuple(out.shape)):16} "
++                  f"{'ok' if not bad else bad:5} {'ok' if pad_ok else 'LEAKS':7} {peak:7.2f}  {'OK' if good else 'FAIL'}")
++        except Exception as e:
++            n_fail += 1
++            print(f"{cid:16} FAIL {type(e).__name__}: {e}")
++    print(f"\n{len(only) - n_fail} / {len(only)} OK   (budget 'soft!' = outside 1.7M +/- 10%, reported only)")
++    sys.exit(1 if n_fail else 0)
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/scripts/status.sh b/scripts/status.sh
+index b30cd17..02fb259 100755
+--- a/scripts/status.sh
++++ b/scripts/status.sh
+@@ -3,7 +3,7 @@
+ cd ~/eo-crop-transformers
+ echo "=== JOBS ==="; squeue -u s3295303 -o "%.8i %.10j %.2t %.10M %.20R"
+ echo; echo "=== PROGRESS (done / claimed / total) ==="
+-for exp in fold1_sgd compat_cases nine_c1_c4 nine_rest; do
++for exp in nine_c1_c4 nine_rest pe_screen_6nov scale_20pct; do
+   [ -f experiments/$exp.yaml ] || continue
+   total=$(grep -c "^  - {id" experiments/$exp.yaml)
+   done=$(grep -l "\[done\]" logs/run_${exp}_[0-9]*.out 2>/dev/null | wc -l)
+diff --git a/tests/test_models.py b/tests/test_models.py
+index 3513af7..2232605 100644
+--- a/tests/test_models.py
++++ b/tests/test_models.py
+@@ -60,8 +60,50 @@ def test_padding_does_not_change_output():
+ def test_search_space_rejects_invalid():
+     cfg = apply_overrides(load_protocol(), {"model.tokenizer": "patch2d", "model.patch_size": 5})
+     assert check(cfg), "patch 5 does not divide 24"
++    cfg = apply_overrides(load_protocol(), {"model.tokenizer": "tubelet", "model.patch_size": 4, "model.tubelet_t": 7})
++    assert check(cfg), "60 dates do not divide into tubelets of 7"
+     valid, invalid = enumerate_configs(load_protocol())
+-    assert valid and invalid
++    assert valid
++    assert all(any(r.startswith(("grid", "PE shape")) for r in reasons) for _, reasons in invalid)
++
++
++def test_budget_and_tokens_are_soft():
++    """Agreed 5 Nov: only grid divisibility and PE shape reject; budget and token count only warn."""
++    from core.models.search_space import soft_warnings
++    cfg = apply_overrides(load_protocol(), {"model.tokenizer": "cuboid", "model.patch_size": 12,
++                                            "model.tubelet_t": 2, "model.attention": "joint"})
++    assert not check(cfg), "large cuboid breaks the parameter budget but must not be rejected"
++    assert any(w.startswith("params") for w in soft_warnings(cfg))
++    cfg = apply_overrides(load_protocol(), {"model.tokenizer": "patch2d", "model.patch_size": 2, "model.attention": "joint"})
++    assert not check(cfg), "8,640 tokens is over the token budget but must not be rejected"
++    assert any(w.startswith("tokens") for w in soft_warnings(cfg))
++
++
++@pytest.mark.parametrize("ov", [
++    {"model.pe_mode": "add", "model.spatial_pe": "none", "model.temporal_enc": "none"},
++    {"model.pe_mode": "concat", "model.spatial_pe": "none", "model.temporal_enc": "index_sin"},
++    {"model.pe_mode": "rel3d", "model.spatial_pe": "none", "model.temporal_enc": "none"},
++])
++def test_new_encodings_build_and_ignore_padding(ov):
++    import torch
++    from core.models.builder import build_model
++    cfg = apply_overrides(load_protocol(), {"model.tokenizer": "tubelet", "model.patch_size": 4, "model.tubelet_t": 2,
++                                            "model.attention": "joint", **ov})
++    cfg["data"]["max_dates"] = 8
++    model = build_model(cfg).eval()
++    x = torch.randn(2, 8, 10, 24, 24); doy = torch.arange(8).repeat(2, 1) * 10
++    mask = torch.ones(2, 8, dtype=torch.bool); mask[:, 6:] = False; x[~mask] = 0
++    with torch.no_grad():
++        y1 = model(x, doy, mask)
++        x[~mask] = 5.0
++        y2 = model(x, doy, mask)
++    assert y1.shape == (2, 19, 24, 24) and torch.allclose(y1, y2, atol=1e-4)
++
++
++def test_learned_date_table_starts_small():
++    from core.models.pos_encoding import TemporalEncoding
++    for kind in ("doy_learned", "index_learned"):
++        assert TemporalEncoding(kind, 128, 60).emb.weight.std() < 0.03
+ 
+ 
+ def test_protocol_blocks_fixed_keys():

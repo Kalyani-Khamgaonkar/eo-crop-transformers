@@ -1,0 +1,33 @@
+# Frame number with a learned spatial grid P[i] (same spatial part as the date sinusoid and date table runs).
+# frame_sin: fixed sin cos of the frame number, added. frame_learned: learned table per frame number (ViViT, TimeSformer).
+name: frame_learnedP_6nov
+
+base:
+  model.attention: joint
+  model.patch_size: 4
+  model.pe_mode: add
+  model.spatial_pe: learnable
+  model.dropout: 1.0e-01
+  model.drop_path: 1.0e-01
+  train.optimizer: sgd
+  train.lr: 1.0e-01
+  train.weight_decay: 5.0e-04
+  train.augment: flip_date
+  train.label_smoothing: 0.0e+00
+  train.loss: weighted_ce
+  data.subset_fraction: 5.0e-02
+  data.num_workers: 6
+
+runs:
+  - {id: frame_sin_2d_s42, model.tokenizer: patch2d, model.tubelet_t: 1, model.temporal_enc: index_sin, train.seed: 42}
+  - {id: frame_sin_tube_s42, model.tokenizer: tubelet, model.tubelet_t: 2, model.temporal_enc: index_sin, train.seed: 42}
+  - {id: frame_learned_2d_s42, model.tokenizer: patch2d, model.tubelet_t: 1, model.temporal_enc: index_learned, train.seed: 42}
+  - {id: frame_learned_tube_s42, model.tokenizer: tubelet, model.tubelet_t: 2, model.temporal_enc: index_learned, train.seed: 42}
+  - {id: frame_sin_2d_s1, model.tokenizer: patch2d, model.tubelet_t: 1, model.temporal_enc: index_sin, train.seed: 1}
+  - {id: frame_sin_tube_s1, model.tokenizer: tubelet, model.tubelet_t: 2, model.temporal_enc: index_sin, train.seed: 1}
+  - {id: frame_learned_2d_s1, model.tokenizer: patch2d, model.tubelet_t: 1, model.temporal_enc: index_learned, train.seed: 1}
+  - {id: frame_learned_tube_s1, model.tokenizer: tubelet, model.tubelet_t: 2, model.temporal_enc: index_learned, train.seed: 1}
+  - {id: frame_sin_2d_s2, model.tokenizer: patch2d, model.tubelet_t: 1, model.temporal_enc: index_sin, train.seed: 2}
+  - {id: frame_sin_tube_s2, model.tokenizer: tubelet, model.tubelet_t: 2, model.temporal_enc: index_sin, train.seed: 2}
+  - {id: frame_learned_2d_s2, model.tokenizer: patch2d, model.tubelet_t: 1, model.temporal_enc: index_learned, train.seed: 2}
+  - {id: frame_learned_tube_s2, model.tokenizer: tubelet, model.tubelet_t: 2, model.temporal_enc: index_learned, train.seed: 2}

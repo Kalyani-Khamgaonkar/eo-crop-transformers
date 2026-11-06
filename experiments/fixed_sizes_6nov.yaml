@@ -1,0 +1,23 @@
+# Fixed-size references for the FlexiViT runs (flex_6nov), 1 seed, same settings as flex_6nov.
+name: fixed_sizes_6nov
+
+base:
+  model.attention: joint
+  model.pe_mode: add
+  model.temporal_enc: doy_sin
+  model.dropout: 1.0e-01
+  model.drop_path: 1.0e-01
+  train.optimizer: sgd
+  train.lr: 1.0e-01
+  train.weight_decay: 5.0e-04
+  train.augment: flip_date
+  train.label_smoothing: 0.0e+00
+  train.loss: weighted_ce
+  data.subset_fraction: 5.0e-02
+  data.num_workers: 6
+
+runs:
+  - {id: fixed_2d_p6_s42, model.tokenizer: patch2d, model.tubelet_t: 1, model.patch_size: 6, model.spatial_pe: sinusoidal, train.seed: 42}
+  - {id: fixed_2d_p8_s42, model.tokenizer: patch2d, model.tubelet_t: 1, model.patch_size: 8, model.spatial_pe: sinusoidal, train.seed: 42}
+  - {id: fixed_tube_t3_s42, model.tokenizer: tubelet, model.tubelet_t: 3, model.patch_size: 4, model.spatial_pe: learnable, train.seed: 42}
+  - {id: fixed_2d_p3_s42, model.tokenizer: patch2d, model.tubelet_t: 1, model.patch_size: 3, model.spatial_pe: sinusoidal, train.seed: 42}

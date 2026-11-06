@@ -33,6 +33,8 @@ model:
   temporal_enc: doy_sin        # doy_sin | doy_learned | index_learned
   pe_mode: add                 # add | concat | conv   (how position enters the token)
   group_enc: learned           # learned | sin         (spectral groups only)
+  flex_patch: []               # FlexiViT: patch sizes picked per training step, e.g. [3, 4, 6, 8]; [] = off
+  flex_t: []                   # FlexiViT in time: tubelet lengths per training step, e.g. [1, 2, 3]; [] = off
   dropout: 0.0
   drop_path: 0.0
 
@@ -71,6 +73,8 @@ tunable:
   - model.temporal_enc
   - model.pe_mode
   - model.group_enc
+  - model.flex_patch
+  - model.flex_t
   - model.dropout
   - model.drop_path
   - train.epochs

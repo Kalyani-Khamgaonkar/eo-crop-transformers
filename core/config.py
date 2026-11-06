@@ -121,6 +121,9 @@ def config_hash(cfg: dict, n: int = 6) -> str:
     core = {k: cfg[k] for k in ("data", "model", "train") if k in cfg}
     core = json.loads(json.dumps(core))
     core["data"].pop("num_workers", None)  # does not change results
+    for k in ("flex_patch", "flex_t"):     # new keys: off = absent, so old run names do not change
+        if not core.get("model", {}).get(k):
+            core.get("model", {}).pop(k, None)
     return hashlib.sha1(json.dumps(core, sort_keys=True).encode()).hexdigest()[:n]
 
 

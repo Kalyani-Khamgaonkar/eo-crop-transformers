@@ -1,0 +1,28 @@
+# FlexiViT check, 1 seed, 5% fold I, final hyperparameters, joint attention.
+# flexvit_2d: one 2D model trained with patch size 3, 4, 6 or 8 (picked per step); base 4.
+#             Spatial PE sinusoidal (works for any grid), date sinusoid in time.
+#             Fixed-size reference at p = 4: case 1 (sin spatial + date sinusoid) = 0.456.
+# flext_tube: one tubelet model trained with 1, 2 or 3 dates per token (picked per step); base 2.
+#             Same PE as the baseline. Fixed references: t = 1 baseline 0.454, t = 2 tubelet + date sin 0.427.
+# Score every size afterwards with: python scripts/eval_flex.py experiments/flex_6nov.yaml
+name: flex_6nov
+
+base:
+  model.attention: joint
+  model.patch_size: 4
+  model.pe_mode: add
+  model.temporal_enc: doy_sin
+  model.dropout: 1.0e-01
+  model.drop_path: 1.0e-01
+  train.optimizer: sgd
+  train.lr: 1.0e-01
+  train.weight_decay: 5.0e-04
+  train.augment: flip_date
+  train.label_smoothing: 0.0e+00
+  train.loss: weighted_ce
+  data.subset_fraction: 5.0e-02
+  data.num_workers: 6
+
+runs:
+  - {id: flexvit_2d_s42, model.tokenizer: patch2d, model.tubelet_t: 1, model.flex_patch: [3, 4, 6, 8], model.spatial_pe: sinusoidal, train.seed: 42}
+  - {id: flext_tube_s42, model.tokenizer: tubelet, model.tubelet_t: 2, model.flex_t: [1, 2, 3], model.spatial_pe: learnable, train.seed: 42}

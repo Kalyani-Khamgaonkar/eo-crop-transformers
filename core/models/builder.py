@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from core.models.blocks import Encoder
 from core.models.pos_encoding import RelativeBias2D, RelativeBias3D, SpatialPE, TemporalEncoding
@@ -45,11 +46,13 @@ class PixelHead(nn.Module):
         self.norm = nn.LayerNorm(dim)
         self.fc = nn.Linear(dim, num_classes * patch * patch)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:    # (B, N, D) -> (B, K, H, W)
+    def forward(self, x: torch.Tensor, gh: int | None = None, gw: int | None = None) -> torch.Tensor:
+        # (B, N, D) -> (B, K, gh*p, gw*p); gh, gw differ from the base grid only in flex mode
         b = x.shape[0]
         p, k = self.patch, self.num_classes
-        y = self.fc(self.norm(x)).view(b, self.gh, self.gw, k, p, p)
-        return y.permute(0, 3, 1, 4, 2, 5).reshape(b, k, self.gh * p, self.gw * p)
+        gh, gw = gh or self.gh, gw or self.gw
+        y = self.fc(self.norm(x)).view(b, gh, gw, k, p, p)
+        return y.permute(0, 3, 1, 4, 2, 5).reshape(b, k, gh * p, gw * p)
 
 
 class SITSTransformer(nn.Module):
@@ -108,13 +111,49 @@ class SITSTransformer(nn.Module):
         self.head = PixelHead(dim, d["num_classes"], p, self.gh, self.gw)
         self.apply(_init_weights)
 
-    def forward(self, img: torch.Tensor, doy: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
-        tok, doy_t, mask_t = self.tokenizer(img, doy, mask)          # (B, T', G*N, D)
+        # FlexiViT: one model, several patch sizes (flex_patch) and / or tubelet lengths (flex_t).
+        # Training picks one size per step; eval uses the base size unless a size is passed.
+        self.flex_patch = [int(v) for v in (m.get("flex_patch") or [])]
+        self.flex_t = [int(v) for v in (m.get("flex_t") or [])]
+        self.p0, self.t0 = p, pt
+        if self.flex_patch or self.flex_t:
+            assert self.attention == "joint" and self.pe_mode == "add" and self.G == 1, \
+                "flex mode: joint attention, pe_mode add, no spectral groups"
+            assert m["spatial_pe"] in ("sinusoidal", "learnable", "none"), "flex mode: no relative spatial PE"
+            assert m["temporal_enc"] != "index_learned", "flex mode: index_learned depends on the token count"
+            from core.models.flex import FlexTokenizer
+            self.tokenizer = FlexTokenizer(d["bands"], dim, p, pt)
+
+    def _pick(self, opts: list[int]) -> int:
+        return opts[int(torch.randint(len(opts), (1,)))]
+
+    def _flex_spatial_pe(self, gh: int, gw: int, ref: torch.Tensor):
+        kind = self.spatial_pe.kind
+        if kind == "none":
+            return None
+        if kind == "sinusoidal":
+            from core.models.pos_encoding import sincos_2d
+            return sincos_2d(gh, gw, ref.shape[-1]).to(ref)
+        pe = self.spatial_pe.pe.view(1, self.gh, self.gw, -1).permute(0, 3, 1, 2)      # learnable: resize the grid
+        pe = F.interpolate(pe, size=(gh, gw), mode="bicubic", align_corners=False)
+        return pe.permute(0, 2, 3, 1).reshape(gh * gw, -1)
+
+    def forward(self, img: torch.Tensor, doy: torch.Tensor, mask: torch.Tensor,
+                patch: int | None = None, tlen: int | None = None) -> torch.Tensor:
+        flex = bool(self.flex_patch or self.flex_t)
+        if flex:
+            p = patch or (self._pick(self.flex_patch) if self.training and self.flex_patch else self.p0)
+            t = tlen or (self._pick(self.flex_t) if self.training and self.flex_t else self.t0)
+            tok, doy_t, mask_t = self.tokenizer(img, doy, mask, t, p)
+            gh, gw = img.shape[-2] // p, img.shape[-1] // p
+        else:
+            tok, doy_t, mask_t = self.tokenizer(img, doy, mask)      # (B, T', G*N, D)
+            gh, gw = self.gh, self.gw
         b, t, gn, dim = tok.shape
         G = self.G
         n = gn // G
         if self.pe_mode == "add":
-            spe = self.spatial_pe()
+            spe = self.spatial_pe() if not flex or gh == self.gh else self._flex_spatial_pe(gh, gw, tok)
             if spe is not None:
                 tok = tok + spe.repeat(G, 1)[None, None]
             tok = tok + self.temporal_enc(doy_t)[:, :, None, :]
@@ -145,7 +184,10 @@ class SITSTransformer(nn.Module):
             x = self.temporal(x, key_mask)
             x = masked_mean(x, key_mask, dim=1).view(b, n, dim)
             x = self.spatial(x, None, bias)
-        return self.head(x)
+        if not flex or gh == self.gh:
+            return self.head(x)
+        y = self.head(x, gh, gw)                                      # (B, K, gh*p0, gw*p0)
+        return F.interpolate(y, size=img.shape[-2:], mode="bilinear", align_corners=False)
 
 
 def _init_weights(mod: nn.Module) -> None:

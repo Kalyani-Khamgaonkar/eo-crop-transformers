@@ -109,3 +109,54 @@ def test_learned_date_table_starts_small():
 def test_protocol_blocks_fixed_keys():
     with pytest.raises(ValueError):
         apply_overrides(load_protocol(), {"train.batch_size": 32})
+
+
+def test_pi_resize_is_identity_at_base_and_keeps_dot_product():
+    import torch
+    from core.models.flex import pi_resize_matrix
+    m = pi_resize_matrix((1, 4, 4), (1, 4, 4), "cpu")
+    assert torch.allclose(m, torch.eye(16), atol=1e-5)
+    m = pi_resize_matrix((1, 4, 4), (1, 8, 8), "cpu")           # upsampling: <B x, w'> == <x, w>
+    x, w = torch.randn(16), torch.randn(16)
+    bt = torch.nn.functional.interpolate(torch.eye(16).view(16, 1, 1, 4, 4), size=(1, 8, 8),
+                                         mode="trilinear", align_corners=False).reshape(16, -1)
+    assert torch.allclose((bt.T @ x) @ (m @ w), x @ w, atol=1e-4)
+
+
+@pytest.mark.parametrize("ov, sizes", [
+    ({"model.tokenizer": "patch2d", "model.tubelet_t": 1, "model.flex_patch": [3, 4, 6, 8],
+      "model.spatial_pe": "sinusoidal"}, [("patch", s) for s in (3, 4, 6, 8)]),
+    ({"model.tokenizer": "tubelet", "model.tubelet_t": 2, "model.flex_t": [1, 2, 3],
+      "model.spatial_pe": "learnable"}, [("tlen", s) for s in (1, 2, 3)]),
+])
+def test_flex_model_every_size(ov, sizes):
+    import torch
+    from core.models.builder import build_model
+    from core.config import config_hash
+    cfg = apply_overrides(load_protocol(), {"model.attention": "joint", "model.patch_size": 4,
+                                            "model.temporal_enc": "doy_sin", **ov})
+    cfg["data"]["max_dates"] = 12
+    model = build_model(cfg)
+    x = torch.randn(2, 12, 10, 24, 24); doy = torch.arange(12).repeat(2, 1) * 9
+    mask = torch.ones(2, 12, dtype=torch.bool); mask[:, 6:] = False; x[~mask] = 0
+    model.train()
+    for _ in range(3):                                           # random size per step, gradients reach the base kernel
+        model(x, doy, mask).mean().backward()
+    assert model.tokenizer.weight.grad is not None
+    model.eval()
+    with torch.no_grad():
+        for kind, s in sizes:
+            y1 = model(x, doy, mask, **{kind: s})
+            x2 = x.clone(); x2[~mask] = 5.0
+            y2 = model(x2, doy, mask, **{kind: s})
+            assert y1.shape == (2, 19, 24, 24) and torch.allclose(y1, y2, atol=1e-4), (kind, s)
+
+
+def test_empty_flex_keys_do_not_change_run_names():
+    import copy
+    from core.config import config_hash
+    cfg = load_protocol()
+    old = copy.deepcopy(cfg)
+    for k in ("flex_patch", "flex_t"):
+        old["model"].pop(k, None)
+    assert config_hash(cfg) == config_hash(old)

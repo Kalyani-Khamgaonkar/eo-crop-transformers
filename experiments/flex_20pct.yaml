@@ -1,4 +1,4 @@
-# FlexiViT at 20% of fold I, 1 seed, final hyperparameters, joint attention, 100 epochs (same as the 5% runs).
+# FlexiViT at 20% of fold I, 1 seed, final hyperparameters, joint attention, 200 epochs (same as the full-data runs).
 # Run 0: one 2D model trained with patch size 2, 3, 4, 6, 8 or 12 (picked per step); base 4.
 # Runs 1-6: separate models, each trained at one patch size. Slowest runs first.
 # Score FlexiViT at every size: python scripts/eval_flex.py experiments/flex_20pct.yaml
@@ -19,7 +19,7 @@ base:
   train.augment: flip_date
   train.label_smoothing: 0.0e+00
   train.loss: weighted_ce
-  train.epochs: 100
+  train.epochs: 200
   train.seed: 42
   data.subset_fraction: 2.0e-01
   data.fold_run: I

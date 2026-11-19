@@ -124,6 +124,20 @@ class SITSTransformer(nn.Module):
             from core.models.flex import FlexTokenizer
             self.tokenizer = FlexTokenizer(d["bands"], dim, p, pt)
 
+        # RLT (run-length tokens over time, Choudhury et al. 2024). Off when rlt_tau is 0 / absent.
+        self.rlt_tau = float(m.get("rlt_tau") or 0.0)
+        self.rlt_date = m.get("rlt_date") or "start"                  # start | mid: date of a run token
+        self.rlt_len = None
+        if self.rlt_tau > 0:
+            assert self.attention == "joint" and self.pe_mode == "add" and self.G == 1, \
+                "rlt: joint attention, pe_mode add, no spectral groups"
+            assert m["tokenizer"] == "patch2d" and not (self.flex_patch or self.flex_t), "rlt: patch2d, no flex"
+            assert m["spatial_pe"] in ("learnable", "sinusoidal", "none"), "rlt: no relative spatial PE"
+            assert m["temporal_enc"] in ("doy_sin", "doy_learned", "none"), "rlt: date-based temporal encoding"
+            if (m.get("rlt_len_enc") or "learned") == "learned":      # learned | none: run length k -> vector
+                self.rlt_len = nn.Embedding(d["max_dates"] + 1, dim)
+                nn.init.trunc_normal_(self.rlt_len.weight, std=0.02)
+
     def _pick(self, opts: list[int]) -> int:
         return opts[int(torch.randint(len(opts), (1,)))]
 
@@ -138,8 +152,26 @@ class SITSTransformer(nn.Module):
         pe = F.interpolate(pe, size=(gh, gw), mode="bicubic", align_corners=False)
         return pe.permute(0, 2, 3, 1).reshape(gh * gw, -1)
 
+    def _forward_rlt(self, img: torch.Tensor, doy: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+        from core.models.rlt import compact, find_runs, weighted_pool
+        tok, _, _ = self.tokenizer(img, doy, mask)                       # (B, T, N, D)
+        b, t, n, dim = tok.shape
+        keep, runlen, doy_tok = find_runs(img, doy, mask, self.tokenizer.patch, self.rlt_tau, self.rlt_date)
+        spe = self.spatial_pe()
+        if spe is not None:
+            tok = tok + spe[None, None]
+        tok = tok + self.temporal_enc(doy_tok.reshape(b, t * n)).reshape(b, t, n, dim)
+        if self.rlt_len is not None:
+            tok = tok + self.rlt_len(runlen.clamp(max=self.rlt_len.num_embeddings - 1))
+        x, key_mask, loc, w = compact(tok, keep, runlen)
+        self.rlt_keep = (keep.sum() / mask.sum().clamp(min=1) / n).detach()   # share of real tokens kept
+        x = self.encoder(x, key_mask, None)
+        return self.head(weighted_pool(x, loc, w, n))
+
     def forward(self, img: torch.Tensor, doy: torch.Tensor, mask: torch.Tensor,
                 patch: int | None = None, tlen: int | None = None) -> torch.Tensor:
+        if self.rlt_tau > 0:
+            return self._forward_rlt(img, doy, mask)
         flex = bool(self.flex_patch or self.flex_t)
         if flex:
             p = patch or (self._pick(self.flex_patch) if self.training and self.flex_patch else self.p0)

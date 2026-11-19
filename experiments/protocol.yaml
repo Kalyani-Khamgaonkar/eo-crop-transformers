@@ -35,6 +35,9 @@ model:
   group_enc: learned           # learned | sin         (spectral groups only)
   flex_patch: []               # FlexiViT: patch sizes picked per training step, e.g. [3, 4, 6, 8]; [] = off
   flex_t: []                   # FlexiViT in time: tubelet lengths per training step, e.g. [1, 2, 3]; [] = off
+  rlt_tau: 0.0                 # RLT: merge a patch into the previous date's run if mean |change| < tau; 0 = off
+  rlt_date: start              # RLT: date of a run token, start | mid
+  rlt_len_enc: learned         # RLT: run length encoding, learned | none
   dropout: 0.0
   drop_path: 0.0
 
@@ -75,6 +78,9 @@ tunable:
   - model.group_enc
   - model.flex_patch
   - model.flex_t
+  - model.rlt_tau
+  - model.rlt_date
+  - model.rlt_len_enc
   - model.dropout
   - model.drop_path
   - train.epochs

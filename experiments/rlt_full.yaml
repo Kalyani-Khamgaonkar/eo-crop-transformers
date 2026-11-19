@@ -1,0 +1,31 @@
+# RLT (run-length tokens over time) on full fold I, 1 seed, 200 epochs.
+# Same settings as fixed p4 in flex_full (0.613), only RLT added.
+# tau 0.2 keeps ~55% of tokens (attention 0.31x); tau 0.5 keeps ~37% (0.14x)  [rlt_stats.py, 20% train]
+name: rlt_full
+
+base:
+  model.tokenizer: patch2d
+  model.tubelet_t: 1
+  model.patch_size: 4
+  model.attention: joint
+  model.pe_mode: add
+  model.spatial_pe: sinusoidal
+  model.temporal_enc: doy_sin
+  model.rlt_date: start
+  model.rlt_len_enc: learned
+  model.dropout: 1.0e-01
+  model.drop_path: 1.0e-01
+  train.optimizer: sgd
+  train.lr: 1.0e-01
+  train.weight_decay: 5.0e-04
+  train.augment: flip_date
+  train.label_smoothing: 0.0e+00
+  train.loss: weighted_ce
+  train.epochs: 200
+  train.seed: 42
+  data.subset_fraction: 1.0
+  data.fold_run: I
+  data.num_workers: 6
+
+runs:
+  - {id: rlt_tau020_full, model.rlt_tau: 0.2}

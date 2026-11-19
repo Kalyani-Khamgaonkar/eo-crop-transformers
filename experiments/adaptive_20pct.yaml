@@ -1,0 +1,33 @@
+# APT-2D and 3D (APT + RLT) at 20% of fold I, 1 seed, 200 epochs, packed on one GPU (queue priority low on 19 Nov).
+# Same runs as apt_20pct.yaml and apt3d_20pct.yaml (see there for the threshold choice). apt_tau = [tau4, tau8].
+name: adaptive_20pct
+
+base:
+  model.tokenizer: patch2d
+  model.tubelet_t: 1
+  model.patch_size: 2
+  model.attention: joint
+  model.pe_mode: add
+  model.spatial_pe: sinusoidal
+  model.temporal_enc: doy_sin
+  model.rlt_date: start
+  model.rlt_len_enc: learned
+  model.dropout: 1.0e-01
+  model.drop_path: 1.0e-01
+  train.optimizer: sgd
+  train.lr: 1.0e-01
+  train.weight_decay: 5.0e-04
+  train.augment: flip_date
+  train.label_smoothing: 0.0e+00
+  train.loss: weighted_ce
+  train.epochs: 200
+  train.seed: 42
+  data.subset_fraction: 2.0e-01
+  data.fold_run: I
+  data.num_workers: 6
+
+runs:
+  - {id: apt3d_b2162_20pct, model.apt_tau: [2.15, 2.22], model.rlt_tau: 0.2}
+  - {id: apt_b2144_20pct, model.apt_tau: [2.25, 2.34]}
+  - {id: apt3d_b1274_20pct, model.apt_tau: [2.25, 2.34], model.rlt_tau: 0.2}
+  - {id: apt_b938_20pct, model.apt_tau: [2.25, 2.55]}

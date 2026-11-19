@@ -1,0 +1,30 @@
+# APT-2D (adaptive patch sizes 2/4/8 px by entropy) on full fold I, 1 seed, 200 epochs.
+# Same settings as flex_full, only the tokenizer changes. apt_tau = [tau4, tau8], from apt_stats.py (20% train):
+#   [2.25, 2.34] -> ~2,144 tokens (= patch 4 budget, 0.613); area 8/4/2 px = 50/26/24 %
+#   [2.25, 2.55] -> ~938 tokens   (= patch 6 budget, 0.606); area 8/4/2 px = 90/1/9 %
+name: apt_full
+
+base:
+  model.tokenizer: patch2d
+  model.tubelet_t: 1
+  model.patch_size: 2
+  model.attention: joint
+  model.pe_mode: add
+  model.spatial_pe: sinusoidal
+  model.temporal_enc: doy_sin
+  model.dropout: 1.0e-01
+  model.drop_path: 1.0e-01
+  train.optimizer: sgd
+  train.lr: 1.0e-01
+  train.weight_decay: 5.0e-04
+  train.augment: flip_date
+  train.label_smoothing: 0.0e+00
+  train.loss: weighted_ce
+  train.epochs: 200
+  train.seed: 42
+  data.subset_fraction: 1.0
+  data.fold_run: I
+  data.num_workers: 6
+
+runs:
+  - {id: apt_b2144_full, model.apt_tau: [2.25, 2.34]}

@@ -38,6 +38,7 @@ model:
   rlt_tau: 0.0                 # RLT: merge a patch into the previous date's run if mean |change| < tau; 0 = off
   rlt_date: start              # RLT: date of a run token, start | mid
   rlt_len_enc: learned         # RLT: run length encoding, learned | none
+  apt_tau: []                  # APT-2D: entropy thresholds for 2p, 4p, ... patches (p = patch_size); [] = off
   dropout: 0.0
   drop_path: 0.0
 
@@ -81,6 +82,7 @@ tunable:
   - model.rlt_tau
   - model.rlt_date
   - model.rlt_len_enc
+  - model.apt_tau
   - model.dropout
   - model.drop_path
   - train.epochs

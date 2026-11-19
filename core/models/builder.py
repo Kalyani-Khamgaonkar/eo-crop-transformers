@@ -138,6 +138,24 @@ class SITSTransformer(nn.Module):
                 self.rlt_len = nn.Embedding(d["max_dates"] + 1, dim)
                 nn.init.trunc_normal_(self.rlt_len.weight, std=0.02)
 
+        # APT-2D (adaptive patch sizes by entropy, Choudhury et al.). Off when apt_tau is empty.
+        # apt_tau = [tau for 2 p0, tau for 4 p0, ...]; p0 = patch_size.
+        self.apt_tau = [float(v) for v in (m.get("apt_tau") or [])]
+        if self.apt_tau:
+            assert self.attention == "joint" and self.pe_mode == "add" and self.G == 1, \
+                "apt: joint attention, pe_mode add, no spectral groups"
+            assert m["tokenizer"] == "patch2d" and not (self.flex_patch or self.flex_t), "apt: patch2d, no flex"
+            assert self.rlt_tau == 0, "apt + rlt together is not implemented yet"
+            assert m["spatial_pe"] in ("learnable", "sinusoidal", "none"), "apt: no relative spatial PE"
+            assert m["temporal_enc"] in ("doy_sin", "doy_learned", "none"), "apt: date-based temporal encoding"
+            assert d["img_size"] % (p * 2 ** len(self.apt_tau)) == 0, "apt: largest patch must divide img_size"
+            from core.models.apt import APTEmbed
+            self.tokenizer = APTEmbed(d["bands"], dim, p, len(self.apt_tau))
+            self.tokenizer.apply(_init_weights)
+            for z in self.tokenizer.zero:                                    # keep ZeroMLP at zero after init
+                nn.init.zeros_(z.weight)
+                nn.init.zeros_(z.bias)
+
     def _pick(self, opts: list[int]) -> int:
         return opts[int(torch.randint(len(opts), (1,)))]
 
@@ -168,10 +186,52 @@ class SITSTransformer(nn.Module):
         x = self.encoder(x, key_mask, None)
         return self.head(weighted_pool(x, loc, w, n))
 
+    def _forward_apt(self, img: torch.Tensor, doy: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+        from core.models.apt import expand, pool_pe, quadtree
+        L, p0 = len(self.apt_tau), self.tokenizer.p0
+        sel = quadtree(img, mask, p0, self.apt_tau)                      # per level (B, g_l, g_l)
+        emb = self.tokenizer(img)                                        # per level (B, T, g_l, g_l, D)
+        pes = pool_pe(self.spatial_pe(), self.gh, self.gw, L)
+        temp = self.temporal_enc(doy)                                    # (B, T, D)
+        b, t = mask.shape
+        dim = temp.shape[-1]
+        toks, keeps, sizes = [], [], []
+        for lvl in range(L + 1):
+            e = emb[lvl]
+            if pes[lvl] is not None:
+                e = e + pes[lvl][None, None]
+            e = e + temp[:, :, None, None, :]
+            toks.append(e.reshape(b, t, -1, dim))
+            keeps.append(sel[lvl].reshape(b, 1, -1).expand(b, t, -1))
+            sizes.append(e.shape[2:4])
+        tok = torch.cat(toks, 2)                                         # (B, T, Ntot, D)
+        n_tot = tok.shape[2]
+        keep = torch.cat(keeps, 2) & mask[:, :, None]
+        k = keep.reshape(b, t * n_tot)
+        n_keep = k.sum(1)
+        Lk = int(n_keep.max())
+        order = torch.sort((~k).to(torch.int8), dim=1, stable=True).indices[:, :Lk]
+        x = tok.reshape(b, t * n_tot, dim).gather(1, order[..., None].expand(b, Lk, dim))
+        key_mask = torch.arange(Lk, device=img.device)[None] < n_keep[:, None]
+        self.apt_tokens = n_keep.float().mean().detach()                 # tokens per sample actually used
+        x = self.encoder(x, key_mask, None)
+        full = torch.zeros(b, t * n_tot, dim, device=x.device, dtype=x.dtype)
+        full.scatter_(1, order[..., None].expand(b, Lk, dim), x)
+        full = masked_mean(full.view(b, t, n_tot, dim), mask[:, :, None].expand(b, t, n_tot), dim=1)  # (B, Ntot, D)
+        dense, start = 0, 0
+        for lvl in range(L + 1):
+            gh, gw = sizes[lvl]
+            f = full[:, start:start + gh * gw].view(b, gh, gw, dim)
+            start += gh * gw
+            dense = dense + expand(f * sel[lvl][..., None].to(f.dtype), 2 ** lvl)
+        return self.head(dense.reshape(b, self.gh * self.gw, dim))
+
     def forward(self, img: torch.Tensor, doy: torch.Tensor, mask: torch.Tensor,
                 patch: int | None = None, tlen: int | None = None) -> torch.Tensor:
         if self.rlt_tau > 0:
             return self._forward_rlt(img, doy, mask)
+        if self.apt_tau:
+            return self._forward_apt(img, doy, mask)
         flex = bool(self.flex_patch or self.flex_t)
         if flex:
             p = patch or (self._pick(self.flex_patch) if self.training and self.flex_patch else self.p0)

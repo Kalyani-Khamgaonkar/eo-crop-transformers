@@ -145,7 +145,6 @@ class SITSTransformer(nn.Module):
             assert self.attention == "joint" and self.pe_mode == "add" and self.G == 1, \
                 "apt: joint attention, pe_mode add, no spectral groups"
             assert m["tokenizer"] == "patch2d" and not (self.flex_patch or self.flex_t), "apt: patch2d, no flex"
-            assert self.rlt_tau == 0, "apt + rlt together is not implemented yet"
             assert m["spatial_pe"] in ("learnable", "sinusoidal", "none"), "apt: no relative spatial PE"
             assert m["temporal_enc"] in ("doy_sin", "doy_learned", "none"), "apt: date-based temporal encoding"
             assert d["img_size"] % (p * 2 ** len(self.apt_tau)) == 0, "apt: largest patch must divide img_size"
@@ -192,21 +191,37 @@ class SITSTransformer(nn.Module):
         sel = quadtree(img, mask, p0, self.apt_tau)                      # per level (B, g_l, g_l)
         emb = self.tokenizer(img)                                        # per level (B, T, g_l, g_l, D)
         pes = pool_pe(self.spatial_pe(), self.gh, self.gw, L)
-        temp = self.temporal_enc(doy)                                    # (B, T, D)
         b, t = mask.shape
-        dim = temp.shape[-1]
-        toks, keeps, sizes = [], [], []
+        rlt = self.rlt_tau > 0                                           # 3D: APT in space + RLT in time
+        if rlt:
+            from core.models.rlt import find_runs
+        else:
+            temp = self.temporal_enc(doy)                                # (B, T, D)
+        toks, keeps, weights, sizes = [], [], [], []
         for lvl in range(L + 1):
-            e = emb[lvl]
+            e = emb[lvl]                                                 # (B, T, gh, gw, D)
+            gh, gw, dim = e.shape[2:]
             if pes[lvl] is not None:
                 e = e + pes[lvl][None, None]
-            e = e + temp[:, :, None, None, :]
-            toks.append(e.reshape(b, t, -1, dim))
-            keeps.append(sel[lvl].reshape(b, 1, -1).expand(b, t, -1))
-            sizes.append(e.shape[2:4])
+            e = e.reshape(b, t, gh * gw, dim)
+            spatial = sel[lvl].reshape(b, 1, -1).expand(b, t, -1)
+            if rlt:                                                      # runs of this token size over time
+                run_keep, runlen, doy_tok = find_runs(img, doy, mask, p0 * 2 ** lvl, self.rlt_tau, self.rlt_date)
+                e = e + self.temporal_enc(doy_tok.reshape(b, -1)).reshape(b, t, gh * gw, dim)
+                if self.rlt_len is not None:
+                    e = e + self.rlt_len(runlen.clamp(max=self.rlt_len.num_embeddings - 1))
+                keeps.append(spatial & run_keep)
+                weights.append(runlen.to(e.dtype))
+            else:
+                e = e + temp[:, :, None, :]
+                keeps.append(spatial & mask[:, :, None])
+                weights.append(mask[:, :, None].expand(b, t, gh * gw).to(e.dtype))
+            toks.append(e)
+            sizes.append((gh, gw))
         tok = torch.cat(toks, 2)                                         # (B, T, Ntot, D)
         n_tot = tok.shape[2]
-        keep = torch.cat(keeps, 2) & mask[:, :, None]
+        keep = torch.cat(keeps, 2)
+        wts = torch.cat(weights, 2)                                      # dates each token stands for
         k = keep.reshape(b, t * n_tot)
         n_keep = k.sum(1)
         Lk = int(n_keep.max())
@@ -217,7 +232,9 @@ class SITSTransformer(nn.Module):
         x = self.encoder(x, key_mask, None)
         full = torch.zeros(b, t * n_tot, dim, device=x.device, dtype=x.dtype)
         full.scatter_(1, order[..., None].expand(b, Lk, dim), x)
-        full = masked_mean(full.view(b, t, n_tot, dim), mask[:, :, None].expand(b, t, n_tot), dim=1)  # (B, Ntot, D)
+        full = full.view(b, t, n_tot, dim)
+        w = (wts * keep).to(full.dtype)[..., None]                       # weighted mean over time
+        full = (full * w).sum(1) / w.sum(1).clamp(min=1.0)               # (B, Ntot, D)
         dense, start = 0, 0
         for lvl in range(L + 1):
             gh, gw = sizes[lvl]
@@ -228,10 +245,10 @@ class SITSTransformer(nn.Module):
 
     def forward(self, img: torch.Tensor, doy: torch.Tensor, mask: torch.Tensor,
                 patch: int | None = None, tlen: int | None = None) -> torch.Tensor:
+        if self.apt_tau:                                                 # APT alone, or APT + RLT (3D)
+            return self._forward_apt(img, doy, mask)
         if self.rlt_tau > 0:
             return self._forward_rlt(img, doy, mask)
-        if self.apt_tau:
-            return self._forward_apt(img, doy, mask)
         flex = bool(self.flex_patch or self.flex_t)
         if flex:
             p = patch or (self._pick(self.flex_patch) if self.training and self.flex_patch else self.p0)

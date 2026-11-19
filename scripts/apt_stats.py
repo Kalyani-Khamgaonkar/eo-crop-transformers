@@ -2,6 +2,7 @@
 
     python scripts/apt_stats.py                       # 20% fold I train, 300 batches
     python scripts/apt_stats.py --synthetic           # code check only
+    python scripts/apt_stats.py --rlt-tau 0.2         # 3D: APT in space + RLT in time
 
 Prints entropy percentiles per region size, then for each (tau8, tau4) pair: tokens per sample and
 the share of the image covered by 8, 4 and 2 px tokens. Reference budgets with 60 dates:
@@ -16,6 +17,7 @@ import torch
 
 from core.config import resolve_run
 from core.models.apt import quadtree, region_entropy
+from core.models.rlt import find_runs
 from core.training.train import build_loaders
 
 QS = [0.1, 0.25, 0.5, 0.75, 0.9]
@@ -26,6 +28,7 @@ def main():
     ap.add_argument("--fraction", type=float, default=0.2)
     ap.add_argument("--max-batches", type=int, default=300)
     ap.add_argument("--synthetic", action="store_true")
+    ap.add_argument("--rlt-tau", type=float, default=0.0, help="also merge repeated dates (3D)")
     a = ap.parse_args()
     cfg, _ = resolve_run(None, extra_overrides={
         "data.subset_fraction": a.fraction, "data.num_workers": 4, "train.loss": "ce", "train.augment": False})
@@ -36,24 +39,31 @@ def main():
         if i >= a.max_batches:
             break
         img, mask = batch["img"], batch["mask"]
-        batches.append((img, mask))
+        runs = None
+        if a.rlt_tau > 0:                                   # run starts per token size: 2, 4, 8 px
+            runs = [find_runs(img, batch["doy"], mask, 2 * 2 ** l, a.rlt_tau)[0] for l in range(3)]
+        batches.append((img, mask, runs))
         e8.append(region_entropy(img, mask, 8).flatten())
         e4.append(region_entropy(img, mask, 4).flatten())
     e8, e4 = torch.cat(e8), torch.cat(e4)
     q8 = [torch.quantile(e8, q).item() for q in QS]
     q4 = [torch.quantile(e4, q).item() for q in QS]
-    print(f"\n{len(batches) * cfg['train']['batch_size']} samples, {a.fraction:g} of fold I train")
+    print(f"\n{len(batches) * cfg['train']['batch_size']} samples, {a.fraction:g} of fold I train"
+          + (f", RLT in time with tau {a.rlt_tau:g} (3D)" if a.rlt_tau > 0 else ""))
     print("entropy (bits) of 8 px regions: " + "  ".join(f"p{int(q*100)} {v:.2f}" for q, v in zip(QS, q8)))
     print("entropy (bits) of 4 px regions: " + "  ".join(f"p{int(q*100)} {v:.2f}" for q, v in zip(QS, q4)))
     print(f"\n{'tau8':>6} {'tau4':>6} {'tokens/sample':>14} {'8px area':>9} {'4px area':>9} {'2px area':>9}")
     for t8 in q8:
         for t4 in q4:
             tok, area, n = 0.0, torch.zeros(3), 0
-            for img, mask in batches:
+            for img, mask, runs in batches:
                 sel = quadtree(img, mask, 2, [t4, t8])                  # finest first: sizes 2, 4, 8 px
                 base_cells = sel[0][0].numel()                          # 2 px cells in the image (144)
-                per_date = sum(s.flatten(1).sum(1).float() for s in sel)
-                tok += (per_date * mask.sum(1)).sum().item()
+                if runs is None:
+                    per_date = sum(s.flatten(1).sum(1).float() for s in sel)
+                    tok += (per_date * mask.sum(1)).sum().item()
+                else:                                           # kept = selected size and first date of a run
+                    tok += sum((s.flatten(1)[:, None, :] & r.flatten(2)).sum().item() for s, r in zip(sel, runs))
                 for l, s in enumerate(sel):                              # a level-l token covers 4**l cells
                     area[l] += (s.flatten(1).sum(1).float() * 4 ** l / base_cells).sum()
                 n += img.shape[0]

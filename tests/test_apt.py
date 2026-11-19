@@ -78,3 +78,33 @@ def test_old_run_names_unchanged():
     cfg = apply_overrides(load_protocol(), BASE)
     off = apply_overrides(load_protocol(), {**BASE, "model.apt_tau": []})
     assert config_hash(cfg) == config_hash(off)
+
+
+def test_3d_without_merging_in_time_equals_apt():
+    """APT + RLT with a tiny RLT threshold and no length encoding must equal APT alone."""
+    apt_cfg = apply_overrides(load_protocol(), {**BASE, "model.apt_tau": [3.0, 3.5]})
+    both_cfg = apply_overrides(load_protocol(), {**BASE, "model.apt_tau": [3.0, 3.5], "model.rlt_tau": 1e-12,
+                                                 "model.rlt_len_enc": "none"})
+    torch.manual_seed(0)
+    apt = build_model(apt_cfg).eval()
+    both = build_model(both_cfg).eval()
+    both.load_state_dict(apt.state_dict(), strict=True)
+    img, doy, mask = _batch(apt_cfg)
+    img[:, :, :, :8, :8] += 0.01 * torch.arange(img.shape[1])[None, :, None, None, None]   # flat, but not repeated
+    img[~mask] = 0
+    with torch.no_grad():
+        a, b = apt(img, doy, mask), both(img, doy, mask)
+    assert torch.allclose(a, b, atol=1e-4), (a - b).abs().max()
+
+
+def test_3d_merges_space_and_time():
+    cfg = apply_overrides(load_protocol(), {**BASE, "model.apt_tau": [3.0, 3.5], "model.rlt_tau": 10.0})
+    model = build_model(cfg).train()
+    img, doy, mask = _batch(cfg)
+    out = model(img, doy, mask)
+    out.mean().backward()
+    apt_only = build_model(apply_overrides(load_protocol(), {**BASE, "model.apt_tau": [3.0, 3.5]})).eval()
+    with torch.no_grad():
+        apt_only(img, doy, mask)
+    assert float(model.apt_tokens) < float(apt_only.apt_tokens)     # time merging removes more tokens
+    assert model.rlt_len.weight.grad is not None

@@ -1,0 +1,34 @@
+# FlexiViT in time at 20% of fold I: 4x4 px patches, flexible dates per token (tubelet length), 200 epochs, seed 42.
+# Run 0: one model trained with t in {1, 2, 3, 4, 6, 12} picked per step (base 4); scored at each t with eval_flex.py.
+# Runs 1-5: fixed tubelet models per t. t = 1 is fixed p4 in flex_20pct (0.533). Same settings as flex_20pct.
+# Tokens per sample (60 dates): t1 2160, t2 1080, t3 720, t4 540, t6 360, t12 180.
+name: flext_20pct
+
+base:
+  model.tokenizer: tubelet
+  model.patch_size: 4
+  model.attention: joint
+  model.pe_mode: add
+  model.spatial_pe: sinusoidal
+  model.temporal_enc: doy_sin
+  model.dropout: 1.0e-01
+  model.drop_path: 1.0e-01
+  train.optimizer: sgd
+  train.lr: 1.0e-01
+  train.weight_decay: 5.0e-04
+  train.augment: flip_date
+  train.label_smoothing: 0.0e+00
+  train.loss: weighted_ce
+  train.epochs: 200
+  train.seed: 42
+  data.subset_fraction: 2.0e-01
+  data.fold_run: I
+  data.num_workers: 6
+
+runs:
+  - {id: flext_tube_20pct, model.tubelet_t: 4, model.flex_t: [1, 2, 3, 4, 6, 12]}
+  - {id: fixed_tube_t2_20pct, model.tubelet_t: 2}
+  - {id: fixed_tube_t3_20pct, model.tubelet_t: 3}
+  - {id: fixed_tube_t4_20pct, model.tubelet_t: 4}
+  - {id: fixed_tube_t6_20pct, model.tubelet_t: 6}
+  - {id: fixed_tube_t12_20pct, model.tubelet_t: 12}
